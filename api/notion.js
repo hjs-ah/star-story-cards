@@ -1,0 +1,133 @@
+// Vercel Edge Function — proxies requests to Notion API
+// Keeps the Notion token server-side, never exposed to the browser
+
+export const config = { runtime: "edge" };
+
+const NOTION_VERSION = "2022-06-28";
+const DS_ID = "e6fc2bfa-0ce6-4f89-b48d-a306543e8b8d";
+
+export default async function handler(req) {
+  const CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  const token = process.env.NOTION_TOKEN;
+  if (!token) {
+    return new Response(JSON.stringify({ error: "NOTION_TOKEN not set" }), {
+      status: 500, headers: { "Content-Type": "application/json", ...CORS },
+    });
+  }
+
+  const notionHeaders = {
+    "Authorization": `Bearer ${token}`,
+    "Notion-Version": NOTION_VERSION,
+    "Content-Type": "application/json",
+  };
+
+  const url = new URL(req.url);
+  const action = url.searchParams.get("action");
+
+  try {
+    // FETCH all stories
+    if (action === "list") {
+      const res = await fetch(`https://api.notion.com/v1/databases/${DS_ID}/query`, {
+        method: "POST",
+        headers: notionHeaders,
+        body: JSON.stringify({ page_size: 100 }),
+      });
+      const data = await res.json();
+      const stories = (data.results || []).map(pageToStory);
+      return new Response(JSON.stringify(stories), {
+        headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
+
+    // CREATE a story
+    if (action === "create") {
+      const body = await req.json();
+      const res = await fetch("https://api.notion.com/v1/pages", {
+        method: "POST",
+        headers: notionHeaders,
+        body: JSON.stringify(storyToPage(body, DS_ID)),
+      });
+      const data = await res.json();
+      return new Response(JSON.stringify(pageToStory(data)), {
+        headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
+
+    // UPDATE a story
+    if (action === "update") {
+      const body = await req.json();
+      const { id, ...story } = body;
+      const res = await fetch(`https://api.notion.com/v1/pages/${id}`, {
+        method: "PATCH",
+        headers: notionHeaders,
+        body: JSON.stringify({ properties: buildProperties(story) }),
+      });
+      const data = await res.json();
+      return new Response(JSON.stringify(pageToStory(data)), {
+        headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "Unknown action" }), {
+      status: 400, headers: { "Content-Type": "application/json", ...CORS },
+    });
+
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500, headers: { "Content-Type": "application/json", ...CORS },
+    });
+  }
+}
+
+// ── Notion page → flat story object ──────────────────────────────────────────
+function pageToStory(page) {
+  const p = page.properties || {};
+  return {
+    id: page.id,
+    title:     textOf(p["Story Title"]),
+    context:   textOf(p["Role/Context"]),
+    situation: textOf(p["Situation"]),
+    task:      textOf(p["Task"]),
+    action:    textOf(p["Action"]),
+    result:    textOf(p["Result"]),
+    status:    p["Status"]?.select?.name || "Active",
+    rating:    p["Star Rating"]?.number || 0,
+    tags:      (p["Tags"]?.multi_select || []).map(t => t.name),
+  };
+}
+
+// ── Flat story object → Notion properties payload ────────────────────────────
+function buildProperties(story) {
+  return {
+    "Story Title": { title: [{ text: { content: story.title || "" } }] },
+    "Role/Context": { rich_text: [{ text: { content: story.context || "" } }] },
+    "Situation":    { rich_text: [{ text: { content: story.situation || "" } }] },
+    "Task":         { rich_text: [{ text: { content: story.task || "" } }] },
+    "Action":       { rich_text: [{ text: { content: story.action || "" } }] },
+    "Result":       { rich_text: [{ text: { content: story.result || "" } }] },
+    "Status":       { select: { name: story.status || "Active" } },
+    "Star Rating":  { number: story.rating || 0 },
+    "Tags":         { multi_select: (story.tags || []).map(name => ({ name })) },
+  };
+}
+
+function storyToPage(story, dbId) {
+  return {
+    parent: { database_id: dbId },
+    properties: buildProperties(story),
+  };
+}
+
+function textOf(prop) {
+  if (!prop) return "";
+  if (prop.title)     return prop.title.map(t => t.plain_text).join("");
+  if (prop.rich_text) return prop.rich_text.map(t => t.plain_text).join("");
+  return "";
+}
