@@ -1,6 +1,3 @@
-// All Notion reads/writes go through /api/notion on Vercel (or Vite dev proxy).
-// The Notion token lives in NOTION_TOKEN env var — never in the browser.
-
 const API = "/api/notion";
 
 async function call(action, body = null) {
@@ -9,11 +6,9 @@ async function call(action, body = null) {
     headers: { "Content-Type": "application/json" },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
 }
 
 export const fetchStories = () => call("list");

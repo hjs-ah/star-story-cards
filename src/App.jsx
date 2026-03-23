@@ -41,7 +41,7 @@ export default function App() {
       const data = await fetchStories();
       setStories(data);
     } catch (e) {
-      setError("Could not load stories. Check your Notion connection.");
+      setError(e.message || "Could not load stories. Check your Notion connection.");
     } finally {
       setLoading(false);
     }
