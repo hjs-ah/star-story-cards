@@ -30,6 +30,7 @@ export default async function handler(req) {
   const action = url.searchParams.get("action");
 
   try {
+    // ── LIST ──────────────────────────────────────────────────────────────────
     if (action === "list") {
       const res = await fetch(`https://api.notion.com/v1/databases/${DB_ID}/query`, {
         method: "POST",
@@ -39,22 +40,22 @@ export default async function handler(req) {
       const data = await res.json();
       if (!res.ok) {
         return new Response(
-          JSON.stringify({ error: `Notion API error: ${data.message || res.status}. Make sure your integration is connected to the database in Notion.` }),
+          JSON.stringify({ error: `Notion API error: ${data.message || res.status}. Make sure your integration is connected to the database.` }),
           { status: res.status, headers: { "Content-Type": "application/json", ...CORS } }
         );
       }
-      const stories = (data.results || []).map(pageToStory);
-      return new Response(JSON.stringify(stories), {
+      return new Response(JSON.stringify((data.results || []).map(pageToStory)), {
         headers: { "Content-Type": "application/json", ...CORS },
       });
     }
 
+    // ── CREATE ────────────────────────────────────────────────────────────────
     if (action === "create") {
       const body = await req.json();
       const res = await fetch("https://api.notion.com/v1/pages", {
         method: "POST",
         headers: notionHeaders,
-        body: JSON.stringify(storyToPage(body, DB_ID)),
+        body: JSON.stringify({ parent: { database_id: DB_ID }, properties: buildProperties(body) }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -68,13 +69,16 @@ export default async function handler(req) {
       });
     }
 
+    // ── UPDATE (full or patch) ────────────────────────────────────────────────
     if (action === "update") {
       const body = await req.json();
-      const { id, ...story } = body;
+      const { id, ...fields } = body;
+      // Only send properties that are actually present in the payload
+      const props = buildProperties(fields, true);
       const res = await fetch(`https://api.notion.com/v1/pages/${id}`, {
         method: "PATCH",
         headers: notionHeaders,
-        body: JSON.stringify({ properties: buildProperties(story) }),
+        body: JSON.stringify({ properties: props }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -99,10 +103,11 @@ export default async function handler(req) {
   }
 }
 
+// ── Notion page → flat story object ──────────────────────────────────────────
 function pageToStory(page) {
   const p = page.properties || {};
   return {
-    id: page.id,
+    id:        page.id,
     title:     textOf(p["Story Title"]),
     context:   textOf(p["Role/Context"]),
     situation: textOf(p["Situation"]),
@@ -115,25 +120,57 @@ function pageToStory(page) {
   };
 }
 
-function buildProperties(story) {
-  return {
-    "Story Title": { title:      [{ text: { content: story.title     || "" } }] },
-    "Role/Context":{ rich_text:  [{ text: { content: story.context   || "" } }] },
-    "Situation":   { rich_text:  [{ text: { content: story.situation || "" } }] },
-    "Task":        { rich_text:  [{ text: { content: story.task      || "" } }] },
-    "Action":      { rich_text:  [{ text: { content: story.action    || "" } }] },
-    "Result":      { rich_text:  [{ text: { content: story.result    || "" } }] },
-    "Status":      { select:     { name: story.status || "Active" } },
-    "Star Rating": { number:     story.rating || 0 },
-    "Tags":        { multi_select: (story.tags || []).map(name => ({ name })) },
-  };
-}
+// ── Flat story → Notion properties payload ────────────────────────────────────
+// partialMode = true → only include keys that are explicitly present in the object
+// This prevents a patch({status:"Archived"}) from wiping title to ""
+function buildProperties(story, partialMode = false) {
+  const has = (k) => story[k] !== undefined || story[kMap[k]] !== undefined;
+  const val = (k) => story[k] !== undefined ? story[k] : story[kMap[k]];
 
-function storyToPage(story, dbId) {
-  return {
-    parent: { database_id: dbId },
-    properties: buildProperties(story),
+  // Accept both lowercase (app) and capitalized (legacy) key names
+  const kMap = {
+    title:     "Story Title",
+    context:   "Role/Context",
+    situation: "Situation",
+    task:      "Task",
+    action:    "Action",
+    result:    "Result",
+    status:    "Status",
+    rating:    "Star Rating",
+    tags:      "Tags",
   };
+
+  const props = {};
+
+  if (!partialMode || has("title")) {
+    props["Story Title"] = { title: [{ text: { content: String(val("title") || "") } }] };
+  }
+  if (!partialMode || has("context")) {
+    props["Role/Context"] = { rich_text: [{ text: { content: String(val("context") || "") } }] };
+  }
+  if (!partialMode || has("situation")) {
+    props["Situation"] = { rich_text: [{ text: { content: String(val("situation") || "") } }] };
+  }
+  if (!partialMode || has("task")) {
+    props["Task"] = { rich_text: [{ text: { content: String(val("task") || "") } }] };
+  }
+  if (!partialMode || has("action")) {
+    props["Action"] = { rich_text: [{ text: { content: String(val("action") || "") } }] };
+  }
+  if (!partialMode || has("result")) {
+    props["Result"] = { rich_text: [{ text: { content: String(val("result") || "") } }] };
+  }
+  if (!partialMode || has("status")) {
+    props["Status"] = { select: { name: String(val("status") || "Active") } };
+  }
+  if (!partialMode || has("rating")) {
+    props["Star Rating"] = { number: Number(val("rating") || 0) };
+  }
+  if (!partialMode || has("tags")) {
+    props["Tags"] = { multi_select: (val("tags") || []).map(name => ({ name })) };
+  }
+
+  return props;
 }
 
 function textOf(prop) {

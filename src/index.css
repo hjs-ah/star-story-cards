@@ -1,5 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
 :root {
   --bg: #FAFAF8;
   --surface: #FFFFFF;
@@ -11,6 +13,7 @@
   --text3: #A09E98;
   --accent: #2A5F9E;
   --accent-bg: #EBF2FB;
+  --accent-border: #93BBE8;
   --amber: #C47B10;
   --amber-bg: #FDF3DC;
   --green: #2E7D4F;
@@ -20,9 +23,37 @@
   --radius-xl: 18px;
   --font: 'DM Sans', system-ui, sans-serif;
   --font-mono: 'DM Mono', monospace;
+  --header-bg: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --section-border: #F0EEE8;
+  --label-bg: #F4F3EF;
+  --label-text: #6B6860;
+  --mono-text: #3A3835;
 }
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+body.dark {
+  --bg: #141412;
+  --surface: #1E1D1A;
+  --surface2: #252420;
+  --border: #2E2D28;
+  --border2: #3A3935;
+  --text: #F0EDE8;
+  --text2: #A09E98;
+  --text3: #6B6860;
+  --accent: #4A85C8;
+  --accent-bg: #1A2D45;
+  --accent-border: #2A5F9E;
+  --amber: #E09A30;
+  --amber-bg: #2A2010;
+  --green: #4CAF78;
+  --green-bg: #102A1A;
+  --header-bg: #1E1D1A;
+  --card-bg: #1E1D1A;
+  --section-border: #2A2924;
+  --label-bg: #252420;
+  --label-text: #A09E98;
+  --mono-text: #C8C5BF;
+}
 
 body {
   font-family: var(--font);
@@ -30,11 +61,11 @@ body {
   color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  transition: background 0.2s, color 0.2s;
 }
 
 #root { min-height: 100vh; }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
