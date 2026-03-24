@@ -68,9 +68,19 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
             {status}
           </span>
         </div>
-        {story.context && (
-          <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 3, fontStyle: "italic" }}>{story.context}</p>
-        )}
+          {story.year && <span style={{ fontSize: 10, color: "var(--text3)", marginTop: 2, display: "block" }}>{story.year}</span>}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
+          {story.year && (
+            <span style={{
+              fontSize: 10, padding: "1px 7px", borderRadius: 20, fontFamily: "var(--font-mono)",
+              background: "var(--accent-bg)", color: "var(--accent)", border: "0.5px solid var(--accent-border)",
+              fontWeight: 500,
+            }}>{story.year}</span>
+          )}
+          {story.context && (
+            <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
+          )}
+        </div>
         <div style={{ marginTop: 8 }}>
           <StarRating value={story.rating || 0} onChange={handleRating} size={14} />
         </div>

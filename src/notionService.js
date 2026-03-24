@@ -11,10 +11,8 @@ async function call(action, body = null) {
   return data;
 }
 
-export const fetchStories = ()             => call("list");
-export const createStory  = (story)        => call("create", story);
-export const updateStory  = (id, story)    => call("update", { id, ...story });
-
-// patchStory: pass flat key/value pairs using the same lowercase keys as the story object
-// The edge function's buildProperties handles mapping them to Notion property names
-export const patchStory = (id, fields)     => call("update", { id, ...fields });
+export const fetchStories  = ()             => call("list");
+export const fetchSchema   = ()             => call("schema");
+export const createStory   = (story)        => call("create", story);
+export const updateStory   = (id, story)    => call("update", { id, ...story });
+export const patchStory    = (id, fields)   => call("update", { id, ...fields });

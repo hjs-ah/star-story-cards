@@ -87,9 +87,18 @@ export default function FocusOverlay({ story, onClose, onEdit }) {
           </span>
         </div>
 
-        {story.context && (
-          <p style={{ fontSize: 13, color: "var(--text3)", fontStyle: "italic", marginBottom: 10 }}>{story.context}</p>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+          {story.year && (
+            <span style={{
+              fontSize: 11, padding: "2px 10px", borderRadius: 20,
+              background: "var(--accent-bg)", color: "var(--accent)",
+              border: "0.5px solid var(--accent-border)", fontFamily: "var(--font-mono)", fontWeight: 500,
+            }}>{story.year}</span>
+          )}
+          {story.context && (
+            <p style={{ fontSize: 13, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
+          )}
+        </div>
 
         <div style={{ marginBottom: 16 }}>
           <StarRating value={story.rating || 0} size={18} readonly />

@@ -9,16 +9,10 @@ export default async function handler(req) {
     "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
-
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   const token = process.env.NOTION_TOKEN;
-  if (!token) {
-    return new Response(
-      JSON.stringify({ error: "NOTION_TOKEN environment variable is not set in Vercel." }),
-      { status: 500, headers: { "Content-Type": "application/json", ...CORS } }
-    );
-  }
+  if (!token) return jsonError("NOTION_TOKEN not set in Vercel environment.", 500, CORS);
 
   const notionHeaders = {
     "Authorization": `Bearer ${token}`,
@@ -30,80 +24,67 @@ export default async function handler(req) {
   const action = url.searchParams.get("action");
 
   try {
-    // ── LIST ──────────────────────────────────────────────────────────────────
+    // ── LIST stories ─────────────────────────────────────────────────────────
     if (action === "list") {
       const res = await fetch(`https://api.notion.com/v1/databases/${DB_ID}/query`, {
-        method: "POST",
-        headers: notionHeaders,
-        body: JSON.stringify({ page_size: 100 }),
+        method: "POST", headers: notionHeaders,
+        body: JSON.stringify({ page_size: 100, sorts: [{ property: "Year", direction: "descending" }] }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        return new Response(
-          JSON.stringify({ error: `Notion API error: ${data.message || res.status}. Make sure your integration is connected to the database.` }),
-          { status: res.status, headers: { "Content-Type": "application/json", ...CORS } }
-        );
-      }
-      return new Response(JSON.stringify((data.results || []).map(pageToStory)), {
-        headers: { "Content-Type": "application/json", ...CORS },
+      if (!res.ok) return jsonError(`Notion error: ${data.message}. Check integration is connected to the database.`, res.status, CORS);
+      return json((data.results || []).map(pageToStory), CORS);
+    }
+
+    // ── GET database schema (for dynamic tags) ────────────────────────────────
+    if (action === "schema") {
+      const res = await fetch(`https://api.notion.com/v1/databases/${DB_ID}`, {
+        method: "GET", headers: notionHeaders,
       });
+      const data = await res.json();
+      if (!res.ok) return jsonError(`Notion error: ${data.message}`, res.status, CORS);
+      const tagOptions = (data.properties?.Tags?.multi_select?.options || []).map(o => o.name);
+      return json({ tags: tagOptions }, CORS);
     }
 
     // ── CREATE ────────────────────────────────────────────────────────────────
     if (action === "create") {
       const body = await req.json();
       const res = await fetch("https://api.notion.com/v1/pages", {
-        method: "POST",
-        headers: notionHeaders,
+        method: "POST", headers: notionHeaders,
         body: JSON.stringify({ parent: { database_id: DB_ID }, properties: buildProperties(body) }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        return new Response(
-          JSON.stringify({ error: `Notion create error: ${data.message || res.status}` }),
-          { status: res.status, headers: { "Content-Type": "application/json", ...CORS } }
-        );
-      }
-      return new Response(JSON.stringify(pageToStory(data)), {
-        headers: { "Content-Type": "application/json", ...CORS },
-      });
+      if (!res.ok) return jsonError(`Notion create error: ${data.message}`, res.status, CORS);
+      return json(pageToStory(data), CORS);
     }
 
     // ── UPDATE (full or patch) ────────────────────────────────────────────────
     if (action === "update") {
       const body = await req.json();
       const { id, ...fields } = body;
-      // Only send properties that are actually present in the payload
-      const props = buildProperties(fields, true);
       const res = await fetch(`https://api.notion.com/v1/pages/${id}`, {
-        method: "PATCH",
-        headers: notionHeaders,
-        body: JSON.stringify({ properties: props }),
+        method: "PATCH", headers: notionHeaders,
+        body: JSON.stringify({ properties: buildProperties(fields, true) }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        return new Response(
-          JSON.stringify({ error: `Notion update error: ${data.message || res.status}` }),
-          { status: res.status, headers: { "Content-Type": "application/json", ...CORS } }
-        );
-      }
-      return new Response(JSON.stringify(pageToStory(data)), {
-        headers: { "Content-Type": "application/json", ...CORS },
-      });
+      if (!res.ok) return jsonError(`Notion update error: ${data.message}`, res.status, CORS);
+      return json(pageToStory(data), CORS);
     }
 
-    return new Response(JSON.stringify({ error: "Unknown action" }), {
-      status: 400, headers: { "Content-Type": "application/json", ...CORS },
-    });
-
+    return jsonError("Unknown action", 400, CORS);
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { "Content-Type": "application/json", ...CORS },
-    });
+    return jsonError(err.message, 500, CORS);
   }
 }
 
-// ── Notion page → flat story object ──────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
+function json(data, cors) {
+  return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json", ...cors } });
+}
+function jsonError(msg, status, cors) {
+  return new Response(JSON.stringify({ error: msg }), { status, headers: { "Content-Type": "application/json", ...cors } });
+}
+
 function pageToStory(page) {
   const p = page.properties || {};
   return {
@@ -117,59 +98,23 @@ function pageToStory(page) {
     status:    p["Status"]?.select?.name || "Active",
     rating:    p["Star Rating"]?.number || 0,
     tags:      (p["Tags"]?.multi_select || []).map(t => t.name),
+    year:      p["Year"]?.number || null,
   };
 }
 
-// ── Flat story → Notion properties payload ────────────────────────────────────
-// partialMode = true → only include keys that are explicitly present in the object
-// This prevents a patch({status:"Archived"}) from wiping title to ""
-function buildProperties(story, partialMode = false) {
-  const has = (k) => story[k] !== undefined || story[kMap[k]] !== undefined;
-  const val = (k) => story[k] !== undefined ? story[k] : story[kMap[k]];
-
-  // Accept both lowercase (app) and capitalized (legacy) key names
-  const kMap = {
-    title:     "Story Title",
-    context:   "Role/Context",
-    situation: "Situation",
-    task:      "Task",
-    action:    "Action",
-    result:    "Result",
-    status:    "Status",
-    rating:    "Star Rating",
-    tags:      "Tags",
-  };
-
+function buildProperties(story, partial = false) {
+  const has = k => story[k] !== undefined;
   const props = {};
-
-  if (!partialMode || has("title")) {
-    props["Story Title"] = { title: [{ text: { content: String(val("title") || "") } }] };
-  }
-  if (!partialMode || has("context")) {
-    props["Role/Context"] = { rich_text: [{ text: { content: String(val("context") || "") } }] };
-  }
-  if (!partialMode || has("situation")) {
-    props["Situation"] = { rich_text: [{ text: { content: String(val("situation") || "") } }] };
-  }
-  if (!partialMode || has("task")) {
-    props["Task"] = { rich_text: [{ text: { content: String(val("task") || "") } }] };
-  }
-  if (!partialMode || has("action")) {
-    props["Action"] = { rich_text: [{ text: { content: String(val("action") || "") } }] };
-  }
-  if (!partialMode || has("result")) {
-    props["Result"] = { rich_text: [{ text: { content: String(val("result") || "") } }] };
-  }
-  if (!partialMode || has("status")) {
-    props["Status"] = { select: { name: String(val("status") || "Active") } };
-  }
-  if (!partialMode || has("rating")) {
-    props["Star Rating"] = { number: Number(val("rating") || 0) };
-  }
-  if (!partialMode || has("tags")) {
-    props["Tags"] = { multi_select: (val("tags") || []).map(name => ({ name })) };
-  }
-
+  if (!partial || has("title"))     props["Story Title"] = { title:      [{ text: { content: String(story.title     || "") } }] };
+  if (!partial || has("context"))   props["Role/Context"] = { rich_text: [{ text: { content: String(story.context   || "") } }] };
+  if (!partial || has("situation")) props["Situation"]    = { rich_text: [{ text: { content: String(story.situation || "") } }] };
+  if (!partial || has("task"))      props["Task"]         = { rich_text: [{ text: { content: String(story.task      || "") } }] };
+  if (!partial || has("action"))    props["Action"]       = { rich_text: [{ text: { content: String(story.action    || "") } }] };
+  if (!partial || has("result"))    props["Result"]       = { rich_text: [{ text: { content: String(story.result    || "") } }] };
+  if (!partial || has("status"))    props["Status"]       = { select:    { name: String(story.status || "Active") } };
+  if (!partial || has("rating"))    props["Star Rating"]  = { number:    Number(story.rating || 0) };
+  if (!partial || has("tags"))      props["Tags"]         = { multi_select: (story.tags || []).map(n => ({ name: n })) };
+  if (!partial || has("year"))      props["Year"]         = { number: story.year ? Number(story.year) : null };
   return props;
 }
 
