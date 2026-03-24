@@ -133,8 +133,8 @@ export default function App() {
         justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>Story Cards</span>
-          <span style={{ fontSize: 11, color: "var(--text3)", background: "var(--surface2)", padding: "2px 8px", borderRadius: 6, fontFamily: "var(--font-mono)" }}>STAR</span>
+          <span style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>AH Story Cards</span>
+          <span style={{ fontSize: 11, color: "var(--text3)", background: "var(--surface2)", padding: "2px 8px", borderRadius: 6, fontFamily: "var(--font-mono)" }}>STAR Format</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {/* Column switcher */}
