@@ -3,6 +3,7 @@ import StoryCard from "./StoryCard";
 import StoryModal from "./StoryModal";
 import FocusOverlay from "./FocusOverlay";
 import { fetchStories, fetchSchema, createStory, updateStory, patchStory } from "./notionService";
+import CareerTimeline from "./CareerTimeline";
 
 const STATUS_FILTERS = ["Active", "Draft", "Archived", "All"];
 const COL_OPTIONS = [1, 2, 3];
@@ -233,6 +234,13 @@ export default function App() {
             )}
           </div>
         )}
+
+        {/* ── Career timeline ─────────────────────────────────────────────── */}
+        <CareerTimeline
+          stories={stories}
+          activeYear={activeYear}
+          onYearSelect={(year) => setActiveYear(activeYear === year ? null : year)}
+        />
 
         {/* ── Active filter summary ─────────────────────────────────────────── */}
         {(activeTag || activeYear) && (
