@@ -19,14 +19,33 @@ const STATUS_STYLES = {
   Archived: { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" },
 };
 
-// Tan palette for card title and border
-const TAN_BORDER   = "var(--tan-border)";
-const TAN_GLOW     = "var(--tan-glow)";
-const TAN_TITLE    = "var(--tan-title)";
+const TAN_BORDER = "var(--tan-border)";
+const TAN_GLOW   = "var(--tan-glow)";
+const TAN_TITLE  = "var(--tan-title)";
 
 function truncate(text, maxChars) {
   if (!text) return "";
   return text.length > maxChars ? text.slice(0, maxChars).trimEnd() + "..." : text;
+}
+
+// S/T/A/R letter badge — inverted contrast against the current theme
+// Light mode: dark letter on light bg → invert to white letter on dark bg
+// Dark mode:  light letter on dark bg → invert to dark letter on white bg
+function StarLabel({ letter }) {
+  return (
+    <span style={{
+      fontSize: 10,
+      fontWeight: 700,
+      padding: "1px 6px",
+      borderRadius: 4,
+      fontFamily: "var(--font-mono)",
+      // Inverted: bg is the text color, text is the bg color
+      background: "var(--text)",
+      color: "var(--bg)",
+    }}>
+      {letter}
+    </span>
+  );
 }
 
 export default function StoryCard({
@@ -42,7 +61,7 @@ export default function StoryCard({
   }
 
   function copyToClipboard() {
-    const text = [
+    const lines = [
       `STORY: ${story.title}`,
       story.context ? `Role: ${story.context}` : "",
       "",
@@ -54,45 +73,25 @@ export default function StoryCard({
       "",
       `RESULT:\n${story.result}`,
     ].filter(l => l !== undefined).join("\n");
-    navigator.clipboard.writeText(text).catch(() => {});
+    navigator.clipboard.writeText(lines).catch(() => {});
   }
 
-  const cardHeader = (
-    <div style={{ marginBottom: condensed ? 6 : 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: TAN_TITLE, lineHeight: 1.4, flex: 1 }}>
-          {story.title || "Untitled"}
-        </h3>
-        <span style={{
-          fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 500, flexShrink: 0,
-          background: ss.bg, color: ss.text, border: `0.5px solid ${ss.border}`,
-        }}>
-          {status}
-        </span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
-        {story.year && (
-          <span style={{
-            fontSize: 10, padding: "1px 7px", borderRadius: 20, fontFamily: "var(--font-mono)",
-            background: "var(--surface2)", color: "var(--text2)",
-            border: "0.5px solid var(--border2)", fontWeight: 500,
-          }}>{story.year}</span>
-        )}
-        {story.context && (
-          <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
-        )}
-      </div>
-      {!condensed && (
-        <div style={{ marginTop: 8 }}>
-          <StarRating value={story.rating || 0} onChange={handleRating} size={14} />
-        </div>
-      )}
+  // Keyword suggestions block — shown below star rating in both views
+  const kwBlock = (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid var(--section-border)" }}>
+      <KeywordSuggestions
+        story={story}
+        kwData={kwData}
+        onSave={onKwSave}
+        onReset={onKwReset}
+        condensed={condensed}
+      />
     </div>
   );
 
   const actionRow = (
     <div style={{
-      display: "flex", gap: 6, marginTop: condensed ? 10 : 12, paddingTop: condensed ? 8 : 10,
+      display: "flex", gap: 6, marginTop: 10, paddingTop: 10,
       borderTop: "0.5px solid var(--section-border)",
     }}>
       <button onClick={() => onFocus(story)} style={btnStyle("focus")}>Focus</button>
@@ -118,10 +117,43 @@ export default function StoryCard({
       transition: "box-shadow 0.15s",
     }}>
 
-      {cardHeader}
+      {/* ── Header — always visible ────────────────────────────────────────── */}
+      <div style={{ marginBottom: condensed ? 6 : 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: TAN_TITLE, lineHeight: 1.4, flex: 1 }}>
+            {story.title || "Untitled"}
+          </h3>
+          <span style={{
+            fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 500, flexShrink: 0,
+            background: ss.bg, color: ss.text, border: `0.5px solid ${ss.border}`,
+          }}>
+            {status}
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
+          {story.year && (
+            <span style={{
+              fontSize: 10, padding: "1px 7px", borderRadius: 20, fontFamily: "var(--font-mono)",
+              background: "var(--surface2)", color: "var(--text2)",
+              border: "0.5px solid var(--border2)", fontWeight: 500,
+            }}>{story.year}</span>
+          )}
+          {story.context && (
+            <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
+          )}
+        </div>
 
+        {/* Star rating — shown in both views */}
+        <div style={{ marginTop: 8 }}>
+          <StarRating value={story.rating || 0} onChange={handleRating} size={14} />
+        </div>
+
+        {/* Keywords sit directly under rating in both views — #3 */}
+        {kwBlock}
+      </div>
+
+      {/* ── CONDENSED: situation snippet + 1 soundbite + tags + actions ────── */}
       {condensed ? (
-        // ── CONDENSED: situation preview + tags + actions only ──────────────
         <div>
           <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.55, margin: 0 }}>
             {truncate(story.situation, 120)}
@@ -142,9 +174,9 @@ export default function StoryCard({
           {actionRow}
         </div>
       ) : (
-        // ── FULL: all STAR sections + keywords ──────────────────────────────
+        /* ── FULL: all STAR sections + tags + actions ─────────────────────── */
         <>
-          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {[
               { key: "situation", label: "S", full: "Situation" },
               { key: "task",      label: "T", full: "Task" },
@@ -153,11 +185,7 @@ export default function StoryCard({
             ].map(({ key, label, full }) => (
               <div key={key} style={{ borderTop: "0.5px solid var(--section-border)", paddingTop: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                  <span style={{
-                    fontSize: 10, fontWeight: 600, background: "var(--label-bg)",
-                    color: "var(--label-text)", padding: "1px 6px", borderRadius: 4,
-                    fontFamily: "var(--font-mono)",
-                  }}>{label}</span>
+                  <StarLabel letter={label} />
                   <span style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                     {full}
                   </span>
@@ -184,15 +212,6 @@ export default function StoryCard({
           )}
 
           {actionRow}
-
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid var(--section-border)" }}>
-            <KeywordSuggestions
-              story={story}
-              kwData={kwData}
-              onSave={onKwSave}
-              onReset={onKwReset}
-            />
-          </div>
         </>
       )}
     </div>

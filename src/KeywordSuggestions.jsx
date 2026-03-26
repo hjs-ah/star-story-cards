@@ -6,8 +6,7 @@ const SECTIONS = [
   { key: "phrases",    label: "Soundbites",   accent: "#6B3FA0", bg: "#F3EEF9", border: "#C9AEE8", mono: false },
 ];
 
-// kwData / onSave / onReset are lifted to App so state survives condensed/full toggle
-export default function KeywordSuggestions({ story, kwData, onSave, onReset }) {
+export default function KeywordSuggestions({ story, kwData, onSave, onReset, condensed }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState("");
 
@@ -47,11 +46,11 @@ export default function KeywordSuggestions({ story, kwData, onSave, onReset }) {
     navigator.clipboard.writeText(lines).catch(() => {});
   }
 
-  // No results yet
+  // ── No results yet ─────────────────────────────────────────────────────────
   if (!kwData) {
     if (loading) {
       return (
-        <div style={{ padding: "8px 0", fontSize: 11, color: "var(--text3)", fontStyle: "italic" }}>
+        <div style={{ padding: "6px 0", fontSize: 11, color: "var(--text3)", fontStyle: "italic" }}>
           Analyzing with Haiku...
         </div>
       );
@@ -59,7 +58,7 @@ export default function KeywordSuggestions({ story, kwData, onSave, onReset }) {
     return (
       <div>
         <button onClick={generate} style={{
-          width: "100%", fontSize: 11, padding: "7px 12px", borderRadius: 8, cursor: "pointer",
+          width: "100%", fontSize: 11, padding: "6px 12px", borderRadius: 8, cursor: "pointer",
           border: "0.5px solid var(--border2)", background: "transparent",
           color: "var(--text2)", fontFamily: "var(--font)", fontWeight: 400,
           transition: "all 0.12s",
@@ -78,7 +77,27 @@ export default function KeywordSuggestions({ story, kwData, onSave, onReset }) {
     );
   }
 
-  // Results are in — render static pills
+  // ── CONDENSED: show only the first soundbite ───────────────────────────────
+  if (condensed) {
+    const firstPhrase = kwData.phrases?.[0];
+    if (!firstPhrase) return null;
+    return (
+      <div style={{ marginTop: 8 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: "#6B3FA0", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+          Soundbite
+        </div>
+        <span style={{
+          fontSize: 11, padding: "3px 9px", borderRadius: 20,
+          background: "#F3EEF9", color: "#6B3FA0", border: "0.5px solid #C9AEE8",
+          lineHeight: 1.5, display: "inline-block",
+        }}>
+          {firstPhrase}
+        </span>
+      </div>
+    );
+  }
+
+  // ── FULL: all sections ─────────────────────────────────────────────────────
   return (
     <div>
       {SECTIONS.map(({ key, label, accent, bg, border, mono }) => {
