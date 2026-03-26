@@ -19,12 +19,20 @@ const STATUS_STYLES = {
   Archived: { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" },
 };
 
+// Tan palette for card title and border
+const TAN_BORDER   = "var(--tan-border)";
+const TAN_GLOW     = "var(--tan-glow)";
+const TAN_TITLE    = "var(--tan-title)";
+
 function truncate(text, maxChars) {
   if (!text) return "";
   return text.length > maxChars ? text.slice(0, maxChars).trimEnd() + "..." : text;
 }
 
-export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatingChange, onFocus, condensed }) {
+export default function StoryCard({
+  story, onEdit, onArchive, onRestore, onRatingChange, onFocus,
+  condensed, kwData, onKwSave, onKwReset,
+}) {
   const status = story.status || "Active";
   const ss = STATUS_STYLES[status] || STATUS_STYLES.Active;
 
@@ -49,53 +57,71 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
     navigator.clipboard.writeText(text).catch(() => {});
   }
 
+  const cardHeader = (
+    <div style={{ marginBottom: condensed ? 6 : 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: TAN_TITLE, lineHeight: 1.4, flex: 1 }}>
+          {story.title || "Untitled"}
+        </h3>
+        <span style={{
+          fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 500, flexShrink: 0,
+          background: ss.bg, color: ss.text, border: `0.5px solid ${ss.border}`,
+        }}>
+          {status}
+        </span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
+        {story.year && (
+          <span style={{
+            fontSize: 10, padding: "1px 7px", borderRadius: 20, fontFamily: "var(--font-mono)",
+            background: "var(--surface2)", color: "var(--text2)",
+            border: "0.5px solid var(--border2)", fontWeight: 500,
+          }}>{story.year}</span>
+        )}
+        {story.context && (
+          <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
+        )}
+      </div>
+      {!condensed && (
+        <div style={{ marginTop: 8 }}>
+          <StarRating value={story.rating || 0} onChange={handleRating} size={14} />
+        </div>
+      )}
+    </div>
+  );
+
+  const actionRow = (
+    <div style={{
+      display: "flex", gap: 6, marginTop: condensed ? 10 : 12, paddingTop: condensed ? 8 : 10,
+      borderTop: "0.5px solid var(--section-border)",
+    }}>
+      <button onClick={() => onFocus(story)} style={btnStyle("focus")}>Focus</button>
+      <button onClick={() => onEdit(story)} style={btnStyle()}>Edit</button>
+      {status !== "Archived"
+        ? <button onClick={() => onArchive(story.id)} style={btnStyle()}>Archive</button>
+        : <button onClick={() => onRestore(story.id)} style={btnStyle()}>Restore</button>
+      }
+      <button onClick={copyToClipboard} style={btnStyle()}>Copy</button>
+    </div>
+  );
+
   return (
     <div style={{
       background: "var(--card-bg)",
-      border: "1.5px solid var(--border2)",
+      border: `1.5px solid ${TAN_BORDER}`,
       borderRadius: 16,
       padding: condensed ? "1rem" : "1.25rem",
       display: "flex",
       flexDirection: "column",
       fontFamily: "var(--font)",
-      boxShadow: "0 0 0 3px var(--surface2)",
-      transition: "box-shadow 0.15s, border-color 0.15s",
+      boxShadow: `0 0 0 3px ${TAN_GLOW}`,
+      transition: "box-shadow 0.15s",
     }}>
 
-      {/* Header — always visible */}
-      <div style={{ marginBottom: condensed ? 6 : 10 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.4, flex: 1 }}>
-            {story.title || "Untitled"}
-          </h3>
-          <span style={{
-            fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 500, flexShrink: 0,
-            background: ss.bg, color: ss.text, border: `0.5px solid ${ss.border}`,
-          }}>
-            {status}
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
-          {story.year && (
-            <span style={{
-              fontSize: 10, padding: "1px 7px", borderRadius: 20, fontFamily: "var(--font-mono)",
-              background: "var(--surface2)", color: "var(--text2)",
-              border: "0.5px solid var(--border2)", fontWeight: 500,
-            }}>{story.year}</span>
-          )}
-          {story.context && (
-            <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
-          )}
-        </div>
-        {!condensed && (
-          <div style={{ marginTop: 8 }}>
-            <StarRating value={story.rating || 0} onChange={handleRating} size={14} />
-          </div>
-        )}
-      </div>
+      {cardHeader}
 
-      {/* CONDENSED VIEW — situation truncated + soundbites only */}
       {condensed ? (
+        // ── CONDENSED: situation preview + tags + actions only ──────────────
         <div>
           <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.55, margin: 0 }}>
             {truncate(story.situation, 120)}
@@ -113,21 +139,10 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
               })}
             </div>
           )}
-          <div style={{
-            display: "flex", gap: 6, marginTop: 10, paddingTop: 8,
-            borderTop: "0.5px solid var(--section-border)",
-          }}>
-            <button onClick={() => onFocus(story)} style={btnStyle("focus")}>Focus</button>
-            <button onClick={() => onEdit(story)} style={btnStyle()}>Edit</button>
-            {status !== "Archived"
-              ? <button onClick={() => onArchive(story.id)} style={btnStyle()}>Archive</button>
-              : <button onClick={() => onRestore(story.id)} style={btnStyle()}>Restore</button>
-            }
-            <button onClick={copyToClipboard} style={btnStyle()}>Copy</button>
-          </div>
+          {actionRow}
         </div>
       ) : (
-        /* FULL VIEW — all STAR sections */
+        // ── FULL: all STAR sections + keywords ──────────────────────────────
         <>
           <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
             {[
@@ -168,21 +183,15 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
             </div>
           )}
 
-          <div style={{
-            display: "flex", gap: 6, marginTop: 12, paddingTop: 10,
-            borderTop: "0.5px solid var(--section-border)",
-          }}>
-            <button onClick={() => onFocus(story)} style={btnStyle("focus")}>Focus</button>
-            <button onClick={() => onEdit(story)} style={btnStyle()}>Edit</button>
-            {status !== "Archived"
-              ? <button onClick={() => onArchive(story.id)} style={btnStyle()}>Archive</button>
-              : <button onClick={() => onRestore(story.id)} style={btnStyle()}>Restore</button>
-            }
-            <button onClick={copyToClipboard} style={btnStyle()}>Copy</button>
-          </div>
+          {actionRow}
 
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid var(--section-border)" }}>
-            <KeywordSuggestions story={story} />
+            <KeywordSuggestions
+              story={story}
+              kwData={kwData}
+              onSave={onKwSave}
+              onReset={onKwReset}
+            />
           </div>
         </>
       )}
@@ -191,12 +200,11 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
 }
 
 function btnStyle(type) {
-  const isFocus = type === "focus";
   return {
     flex: 1, fontSize: 11, padding: "5px 8px", borderRadius: 8, cursor: "pointer",
     border: "0.5px solid var(--border)",
-    background: isFocus ? "var(--surface2)" : "transparent",
-    color: isFocus ? "var(--text)" : "var(--text2)",
+    background: type === "focus" ? "var(--surface2)" : "transparent",
+    color: type === "focus" ? "var(--text)" : "var(--text2)",
     fontFamily: "var(--font)", transition: "all 0.12s",
   };
 }

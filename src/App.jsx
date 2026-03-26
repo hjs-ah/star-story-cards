@@ -35,6 +35,8 @@ export default function App() {
   const [saving, setSaving]           = useState(false);
   const [toast, setToast]             = useState("");
   const [error, setError]             = useState("");
+  // keyword cache — keyed by story id, survives condensed/full toggle
+  const [kwCache, setKwCache]         = useState({});
 
   useEffect(() => { document.body.classList.toggle("dark", dark); }, [dark]);
 
@@ -133,9 +135,12 @@ export default function App() {
         padding: "0 1.5rem", height: 56, display: "flex", alignItems: "center",
         justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>Story Cards</span>
-          <span style={{ fontSize: 11, color: "var(--text3)", background: "var(--surface2)", padding: "2px 8px", borderRadius: 6, fontFamily: "var(--font-mono)" }}>STAR</span>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 17, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>AH Story Cards</span>
+            <span style={{ fontSize: 10, color: "var(--text3)", background: "var(--surface2)", padding: "2px 7px", borderRadius: 5, fontFamily: "var(--font-mono)" }}>STAR</span>
+          </div>
+          <span style={{ fontSize: 10, color: "var(--text3)", letterSpacing: "0.01em" }}>For use by owner</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {/* Column switcher */}
@@ -151,20 +156,20 @@ export default function App() {
               }}>{n}</button>
             ))}
           </div>
-          {/* Condensed toggle */}
+          {/* Condensed toggle — fixed width so column buttons don't shift */}
           <button
             onClick={() => setCondensed(c => !c)}
             title={condensed ? "Full view" : "Condensed view"}
             style={{
-              height: 32, padding: "0 10px", borderRadius: 8, border: "0.5px solid var(--border)",
+              width: 82, height: 32, borderRadius: 8, border: "0.5px solid var(--border)",
               background: condensed ? "var(--surface2)" : "transparent",
               color: condensed ? "var(--text)" : "var(--text3)",
               cursor: "pointer", fontSize: 11, fontFamily: "var(--font)", fontWeight: condensed ? 500 : 400,
-              display: "flex", alignItems: "center", gap: 5, transition: "all 0.12s",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 5, transition: "background 0.12s, color 0.12s",
+              flexShrink: 0,
             }}
           >
-            <span style={{ fontSize: 13, lineHeight: 1 }}>{condensed ? "=" : "="}</span>
-            {condensed ? "Full" : "Condense"}
+            {condensed ? "Full view" : "Condense"}
           </button>
           {/* Dark/light */}
           <button onClick={() => setDark(d => !d)} title={dark ? "Light mode" : "Dark mode"} style={{
@@ -268,6 +273,9 @@ export default function App() {
                 onEdit={openEdit} onArchive={handleArchive}
                 onRestore={handleRestore} onRatingChange={handleRatingChange}
                 onFocus={setFocusStory} condensed={condensed}
+                kwData={kwCache[story.id] || null}
+                onKwSave={(data) => setKwCache(c => ({ ...c, [story.id]: data }))}
+                onKwReset={(id) => setKwCache(c => { const n = { ...c }; delete n[id]; return n; })}
               />
             ))}
           </div>
