@@ -3,9 +3,9 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg: #FAFAF8;
-  --surface: #FFFFFF;
-  --surface2: #F4F3EF;
+  --bg: #EFEDE8;
+  --surface: #F8F7F3;
+  --surface2: #ECEAE4;
   --border: #E5E3DC;
   --border2: #D0CEC5;
   --text: #1A1916;
@@ -23,8 +23,8 @@
   --radius-xl: 18px;
   --font: 'DM Sans', system-ui, sans-serif;
   --font-mono: 'DM Mono', monospace;
-  --header-bg: #FFFFFF;
-  --card-bg: #FFFFFF;
+  --header-bg: #F8F7F3;
+  --card-bg: #F8F7F3;
   --section-border: #F0EEE8;
   --label-bg: #F4F3EF;
   --label-text: #6B6860;

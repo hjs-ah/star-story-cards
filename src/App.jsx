@@ -242,16 +242,32 @@ export default function App() {
           onYearSelect={(year) => setActiveYear(activeYear === year ? null : year)}
         />
 
-        {/* ── Active filter summary ─────────────────────────────────────────── */}
-        {(activeTag || activeYear) && (
-          <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: "1rem" }}>
-            Showing {filtered.length} stor{filtered.length === 1 ? "y" : "ies"}
-            {activeTag  ? ` tagged "${activeTag}"` : ""}
-            {activeYear ? ` from ${activeYear}` : ""}
-            {" — "}
-            <button onClick={() => { setActiveTag(null); setActiveYear(null); }} style={{ fontSize: 11, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>
-              clear all filters
-            </button>
+        {/* ── Filter status bar — always visible ─────────────────────────────── */}
+        {!loading && (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: "1rem", minHeight: 22,
+          }}>
+            <span style={{ fontSize: 11, color: "var(--text2)" }}>
+              {(() => {
+                const hasFilters = activeTag || activeYear || statusFilter !== "All";
+                if (!hasFilters) return <span style={{ color: "var(--text3)" }}>No filters selected</span>;
+                const parts = [];
+                if (statusFilter !== "All") parts.push(statusFilter.toLowerCase());
+                if (activeTag) parts.push(`tagged "${activeTag}"`);
+                if (activeYear) parts.push(`from ${activeYear}`);
+                const desc = parts.join(", ");
+                return <>Showing <strong style={{ fontWeight: 500, color: "var(--text)" }}>{filtered.length}</strong> stor{filtered.length === 1 ? "y" : "ies"}{desc ? ` — ${desc}` : ""}</>;
+              })()}
+            </span>
+            {(activeTag || activeYear) && (
+              <button
+                onClick={() => { setActiveTag(null); setActiveYear(null); }}
+                style={{ fontSize: 11, background: "none", border: "none", color: "var(--tan-title)", cursor: "pointer", textDecoration: "underline", fontFamily: "var(--font)", padding: 0 }}
+              >
+                clear filters
+              </button>
+            )}
           </div>
         )}
 
