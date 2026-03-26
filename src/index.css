@@ -29,8 +29,8 @@
   --label-bg: #F4F3EF;
   --label-text: #6B6860;
   --mono-text: #3A3835;
-  --tan-border: #C8A97E;
-  --tan-glow:   #F5ECD9;
+  --tan-border: #C4C2BC;
+  --tan-glow:   #ECEAE4;
   --tan-title:  #8B6340;
 }
 
@@ -56,8 +56,8 @@ body.dark {
   --label-bg: #252420;
   --label-text: #A09E98;
   --mono-text: #C8C5BF;
-  --tan-border: #8B6340;
-  --tan-glow:   #2A1F12;
+  --tan-border: #4A4845;
+  --tan-glow:   #2A2924;
   --tan-title:  #D4A97A;
 }
 

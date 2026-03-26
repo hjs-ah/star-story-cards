@@ -210,12 +210,7 @@ export default function App() {
             {allTagsInUse.map(tag =>
               pill(tag, activeTag === tag, () => setActiveTag(activeTag === tag ? null : tag))
             )}
-            {activeTag && (
-              <button onClick={() => setActiveTag(null)} style={{
-                fontSize: 11, padding: "3px 8px", borderRadius: 20, cursor: "pointer",
-                border: "0.5px solid var(--border)", background: "transparent", color: "var(--text3)", fontFamily: "var(--font)",
-              }}>✕ clear</button>
-            )}
+
           </div>
         )}
 
@@ -226,12 +221,7 @@ export default function App() {
             {allYears.map(y =>
               pill(String(y), activeYear === y, () => setActiveYear(activeYear === y ? null : y))
             )}
-            {activeYear && (
-              <button onClick={() => setActiveYear(null)} style={{
-                fontSize: 11, padding: "3px 8px", borderRadius: 20, cursor: "pointer",
-                border: "0.5px solid var(--border)", background: "transparent", color: "var(--text3)", fontFamily: "var(--font)",
-              }}>✕ clear</button>
-            )}
+
           </div>
         )}
 
