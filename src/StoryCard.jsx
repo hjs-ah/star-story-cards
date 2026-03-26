@@ -1,15 +1,16 @@
 import StarRating from "./StarRating";
 import { patchStory } from "./notionService";
+import KeywordSuggestions from "./KeywordSuggestions";
 
 const TAG_COLORS = {
-  Leadership:       { bg: "#EBF2FB", text: "#185FA5" },
-  Communication:    { bg: "#E8F5ED", text: "#2E7D4F" },
-  "Problem Solving":{ bg: "#FDF3DC", text: "#C47B10" },
-  Collaboration:    { bg: "#F3EEF9", text: "#6B3FA0" },
-  Sales:            { bg: "#FFF0EC", text: "#B84A2E" },
-  "L&D":            { bg: "#E8F5ED", text: "#2E7D4F" },
-  Ministry:         { bg: "#FDE8F0", text: "#A0346A" },
-  Technical:        { bg: "#F1F0EE", text: "#5C5B56" },
+  Leadership:        { bg: "#EBF2FB", text: "#185FA5" },
+  Communication:     { bg: "#E8F5ED", text: "#2E7D4F" },
+  "Problem Solving": { bg: "#FDF3DC", text: "#C47B10" },
+  Collaboration:     { bg: "#F3EEF9", text: "#6B3FA0" },
+  Sales:             { bg: "#FFF0EC", text: "#B84A2E" },
+  "L&D":             { bg: "#E8F5ED", text: "#2E7D4F" },
+  Ministry:          { bg: "#FDE8F0", text: "#A0346A" },
+  Technical:         { bg: "#F1F0EE", text: "#5C5B56" },
 };
 
 const STATUS_STYLES = {
@@ -39,7 +40,7 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
       `ACTION:\n${story.action}`,
       "",
       `RESULT:\n${story.result}`,
-    ].filter((l) => l !== undefined).join("\n");
+    ].filter(l => l !== undefined).join("\n");
     navigator.clipboard.writeText(text).catch(() => {});
   }
 
@@ -55,6 +56,7 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
       boxShadow: "0 0 0 3px var(--accent-bg)",
       transition: "box-shadow 0.15s, border-color 0.15s",
     }}>
+
       {/* Header */}
       <div style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
@@ -68,13 +70,12 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
             {status}
           </span>
         </div>
-          {story.year && <span style={{ fontSize: 10, color: "var(--text3)", marginTop: 2, display: "block" }}>{story.year}</span>}
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
           {story.year && (
             <span style={{
               fontSize: 10, padding: "1px 7px", borderRadius: 20, fontFamily: "var(--font-mono)",
-              background: "var(--accent-bg)", color: "var(--accent)", border: "0.5px solid var(--accent-border)",
-              fontWeight: 500,
+              background: "var(--accent-bg)", color: "var(--accent)",
+              border: "0.5px solid var(--accent-border)", fontWeight: 500,
             }}>{story.year}</span>
           )}
           {story.context && (
@@ -98,10 +99,9 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
             <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
               <span style={{
                 fontSize: 10, fontWeight: 600, background: "var(--label-bg)",
-                color: "var(--label-text)", padding: "1px 6px", borderRadius: 4, fontFamily: "var(--font-mono)",
-              }}>
-                {label}
-              </span>
+                color: "var(--label-text)", padding: "1px 6px", borderRadius: 4,
+                fontFamily: "var(--font-mono)",
+              }}>{label}</span>
               <span style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                 {full}
               </span>
@@ -116,15 +116,13 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
       {/* Tags */}
       {story.tags?.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 12 }}>
-          {story.tags.map((tag) => {
+          {story.tags.map(tag => {
             const tc = TAG_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860" };
             return (
               <span key={tag} style={{
                 fontSize: 10, padding: "2px 8px", borderRadius: 20,
                 background: tc.bg, color: tc.text, fontWeight: 500,
-              }}>
-                {tag}
-              </span>
+              }}>{tag}</span>
             );
           })}
         </div>
@@ -135,7 +133,7 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
         display: "flex", gap: 6, marginTop: 12, paddingTop: 10,
         borderTop: "0.5px solid var(--section-border)",
       }}>
-        <button onClick={() => onFocus(story)} style={btnStyle("focus")} title="Focus view">⊙ Focus</button>
+        <button onClick={() => onFocus(story)} style={btnStyle("focus")}>Focus</button>
         <button onClick={() => onEdit(story)} style={btnStyle()}>Edit</button>
         {status !== "Archived"
           ? <button onClick={() => onArchive(story.id)} style={btnStyle()}>Archive</button>
@@ -143,6 +141,12 @@ export default function StoryCard({ story, onEdit, onArchive, onRestore, onRatin
         }
         <button onClick={copyToClipboard} style={btnStyle()}>Copy</button>
       </div>
+
+      {/* Keyword suggestions — static once generated */}
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid var(--section-border)" }}>
+        <KeywordSuggestions story={story} />
+      </div>
+
     </div>
   );
 }
