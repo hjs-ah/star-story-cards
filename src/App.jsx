@@ -27,6 +27,7 @@ export default function App() {
   const [activeTag, setActiveTag]     = useState(null);   // tag filter
   const [activeYear, setActiveYear]   = useState(null);   // year filter
   const [cols, setCols]               = useState(2);
+  const [condensed, setCondensed]     = useState(false);
   const [dark, setDark]               = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [editingStory, setEditing]    = useState(null);
   const [modalOpen, setModalOpen]     = useState(false);
@@ -133,8 +134,8 @@ export default function App() {
         justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>AH Story Cards</span>
-          <span style={{ fontSize: 11, color: "var(--text3)", background: "var(--surface2)", padding: "2px 8px", borderRadius: 6, fontFamily: "var(--font-mono)" }}>STAR Format</span>
+          <span style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>Story Cards</span>
+          <span style={{ fontSize: 11, color: "var(--text3)", background: "var(--surface2)", padding: "2px 8px", borderRadius: 6, fontFamily: "var(--font-mono)" }}>STAR</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {/* Column switcher */}
@@ -150,6 +151,21 @@ export default function App() {
               }}>{n}</button>
             ))}
           </div>
+          {/* Condensed toggle */}
+          <button
+            onClick={() => setCondensed(c => !c)}
+            title={condensed ? "Full view" : "Condensed view"}
+            style={{
+              height: 32, padding: "0 10px", borderRadius: 8, border: "0.5px solid var(--border)",
+              background: condensed ? "var(--surface2)" : "transparent",
+              color: condensed ? "var(--text)" : "var(--text3)",
+              cursor: "pointer", fontSize: 11, fontFamily: "var(--font)", fontWeight: condensed ? 500 : 400,
+              display: "flex", alignItems: "center", gap: 5, transition: "all 0.12s",
+            }}
+          >
+            <span style={{ fontSize: 13, lineHeight: 1 }}>{condensed ? "=" : "="}</span>
+            {condensed ? "Full" : "Condense"}
+          </button>
           {/* Dark/light */}
           <button onClick={() => setDark(d => !d)} title={dark ? "Light mode" : "Dark mode"} style={{
             width: 34, height: 34, borderRadius: 8, border: "0.5px solid var(--border)",
@@ -251,7 +267,7 @@ export default function App() {
               <StoryCard key={story.id} story={story}
                 onEdit={openEdit} onArchive={handleArchive}
                 onRestore={handleRestore} onRatingChange={handleRatingChange}
-                onFocus={setFocusStory}
+                onFocus={setFocusStory} condensed={condensed}
               />
             ))}
           </div>
