@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/api/config': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/notion': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/suggest': {
         target: 'https://api.anthropic.com',

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import StoryCard from "./StoryCard";
 import StoryModal from "./StoryModal";
 import FocusOverlay from "./FocusOverlay";
-import { fetchStories, fetchSchema, createStory, updateStory, patchStory } from "./notionService";
+import { fetchStories, fetchSchema, createStory, updateStory, patchStory, fetchConfig } from "./notionService";
+import SiteHeader from "./SiteHeader";
 import CareerTimeline from "./CareerTimeline";
 
 const STATUS_FILTERS = ["Active", "Draft", "Archived", "All"];
@@ -38,6 +39,7 @@ export default function App() {
   const [error, setError]             = useState("");
   // keyword cache — keyed by story id, survives condensed/full toggle
   const [kwCache, setKwCache]         = useState({});
+  const [siteConfig, setSiteConfig]   = useState({});
 
   useEffect(() => { document.body.classList.toggle("dark", dark); }, [dark]);
 
@@ -46,9 +48,10 @@ export default function App() {
   const loadAll = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const [data, schema] = await Promise.all([fetchStories(), fetchSchema()]);
+      const [data, schema, cfg] = await Promise.all([fetchStories(), fetchSchema(), fetchConfig().catch(() => ({}))]);
       setStories(data);
       setAvailTags(schema.tags || []);
+      setSiteConfig(cfg);
     } catch (e) {
       setError(e.message || "Could not load stories.");
     } finally {
@@ -130,6 +133,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", transition: "background 0.2s" }}>
+      <SiteHeader cfg={siteConfig} />
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header style={{
         background: "var(--header-bg)", borderBottom: "0.5px solid var(--border)",
@@ -138,7 +142,7 @@ export default function App() {
       }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 17, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>AH Story Cards</span>
+            <span style={{ fontSize: 17, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>Impact Narratives</span>
             <span style={{ fontSize: 10, color: "var(--text3)", background: "var(--surface2)", padding: "2px 7px", borderRadius: 5, fontFamily: "var(--font-mono)" }}>STAR</span>
           </div>
           <span style={{ fontSize: 10, color: "var(--text3)", letterSpacing: "0.01em" }}>For use by owner</span>
