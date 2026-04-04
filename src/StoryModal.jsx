@@ -1,9 +1,14 @@
 import { useState, useEffect } from "react";
 import StarRating from "./StarRating";
 
+const ALL_OUTCOMES = [
+  "Revenue Generation", "Market Awareness", "Customer Attraction", "Customer Happiness",
+  "Company Growth", "Employee Happiness", "Cost Reduction", "Process Efficiency"
+];
+
 const EMPTY = {
   title: "", context: "", situation: "", task: "", action: "", result: "",
-  status: "Active", rating: 5, tags: [], year: "",
+  status: "Active", rating: 5, tags: [], year: "", outcomes: [],
 };
 
 export default function StoryModal({ story, onSave, onClose, saving, availableTags }) {
