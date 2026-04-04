@@ -165,15 +165,15 @@ export default function App() {
           </div>
           {/* STAR / CA²R global toggle */}
           <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 3, flexShrink: 0 }}>
-            {["STAR", "CA²R"].map(m => (
-              <button key={m} onClick={() => setStoryMode(m)} style={{
+            {[["STAR","STAR"], ["CA²R","CA2R"]].map(([label,val]) => (
+              <button key={val} onClick={() => setStoryMode(val)} style={{
                 padding: "0 10px", height: 26, borderRadius: 6, border: "none", cursor: "pointer",
-                background: storyMode === m ? "var(--surface)" : "transparent",
-                color: storyMode === m ? "var(--text)" : "var(--text3)",
-                fontFamily: "var(--font)", fontSize: 11, fontWeight: storyMode === m ? 500 : 400,
-                boxShadow: storyMode === m ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+                background: storyMode === val ? "var(--surface)" : "transparent",
+                color: storyMode === val ? "var(--text)" : "var(--text3)",
+                fontFamily: "var(--font)", fontSize: 11, fontWeight: storyMode === val ? 500 : 400,
+                boxShadow: storyMode === val ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
                 transition: "all 0.12s", flexShrink: 0,
-              }}>{m}</button>
+              }}>{label}</button>
             ))}
           </div>
           {/* Condensed toggle — fixed width so column buttons don't shift */}
