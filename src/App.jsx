@@ -39,6 +39,8 @@ export default function App() {
   const [error, setError]             = useState("");
   // keyword cache — keyed by story id, survives condensed/full toggle
   const [kwCache, setKwCache]         = useState({});
+  const [carCache, setCarCache]       = useState({});  // CA2R data keyed by story id
+  const [storyMode, setStoryMode]     = useState("STAR"); // "STAR" | "CA2R"
   const [siteConfig, setSiteConfig]   = useState({});
 
   useEffect(() => { document.body.classList.toggle("dark", dark); }, [dark]);
@@ -159,6 +161,19 @@ export default function App() {
                 boxShadow: cols === n ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
                 transition: "all 0.12s",
               }}>{n}</button>
+            ))}
+          </div>
+          {/* STAR / CA²R global toggle */}
+          <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 3, flexShrink: 0 }}>
+            {["STAR", "CA²R"].map(m => (
+              <button key={m} onClick={() => setStoryMode(m)} style={{
+                padding: "0 10px", height: 26, borderRadius: 6, border: "none", cursor: "pointer",
+                background: storyMode === m ? "var(--surface)" : "transparent",
+                color: storyMode === m ? "var(--text)" : "var(--text3)",
+                fontFamily: "var(--font)", fontSize: 11, fontWeight: storyMode === m ? 500 : 400,
+                boxShadow: storyMode === m ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+                transition: "all 0.12s", flexShrink: 0,
+              }}>{m}</button>
             ))}
           </div>
           {/* Condensed toggle — fixed width so column buttons don't shift */}
@@ -290,10 +305,13 @@ export default function App() {
               <StoryCard key={story.id} story={story}
                 onEdit={openEdit} onArchive={handleArchive}
                 onRestore={handleRestore} onRatingChange={handleRatingChange}
-                onFocus={setFocusStory} condensed={condensed}
+                onFocus={setFocusStory} condensed={condensed} storyMode={storyMode}
                 kwData={kwCache[story.id] || null}
                 onKwSave={(data) => setKwCache(c => ({ ...c, [story.id]: data }))}
                 onKwReset={(id) => setKwCache(c => { const n = { ...c }; delete n[id]; return n; })}
+                carData={carCache[story.id] || null}
+                onCarSave={(data) => setCarCache(c => ({ ...c, [story.id]: data }))}
+                onCarReset={(id) => setCarCache(c => { const n = { ...c }; delete n[id]; return n; })}
               />
             ))}
           </div>
@@ -304,7 +322,7 @@ export default function App() {
         <StoryModal story={editingStory} onSave={handleSave} onClose={closeModal}
           saving={saving} availableTags={allTagsInUse} />
       )}
-      {focusStory && <FocusOverlay story={focusStory} onClose={() => setFocusStory(null)} onEdit={openEdit} />}
+      {focusStory && <FocusOverlay story={focusStory} onClose={() => setFocusStory(null)} onEdit={openEdit} carData={carCache[focusStory?.id] || null} onCarSave={(data) => setCarCache(c => ({ ...c, [focusStory.id]: data }))} />}
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
     </div>
   );

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 
 const MIN_YEAR = 2017;
-const MAX_YEAR = 2025;
+const MAX_YEAR = 2026;
 const ALL_YEARS = Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i);
 
 const TAG_CATEGORY = {

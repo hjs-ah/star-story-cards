@@ -23,3 +23,15 @@ export async function fetchConfig() {
   if (!res.ok) throw new Error(data.error || "Config fetch failed");
   return data;
 }
+
+export async function saveCA2R(id, car) {
+  return call("update", {
+    id,
+    car2r_context:   car.context   || "",
+    car2r_approach1: car.approach1 || "",
+    car2r_approach2: car.approach2 || "",
+    car2r_result:    car.result    || "",
+    car2r_coach:     car.coachNotes || "",
+    car2r_generated: true,
+  });
+}

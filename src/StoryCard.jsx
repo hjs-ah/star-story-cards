@@ -1,6 +1,7 @@
 import StarRating from "./StarRating";
-import { patchStory } from "./notionService";
+import { patchStory, saveCA2R } from "./notionService";
 import KeywordSuggestions from "./KeywordSuggestions";
+import { CA2RCardView, CA2RGenerateButton, OutcomeTags } from "./CA2RGenerator";
 
 const TAG_COLORS = {
   Leadership:        { bg: "#EBF2FB", text: "#185FA5" },
@@ -28,40 +29,60 @@ function truncate(text, maxChars) {
   return text.length > maxChars ? text.slice(0, maxChars).trimEnd() + "..." : text;
 }
 
-// S/T/A/R letter badge — inverted contrast against the current theme
-// Light mode: dark letter on light bg → invert to white letter on dark bg
-// Dark mode:  light letter on dark bg → invert to dark letter on white bg
 function StarLabel({ letter }) {
   return (
     <span style={{
-      fontSize: 10,
-      fontWeight: 700,
-      padding: "1px 6px",
-      borderRadius: 4,
+      fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
       fontFamily: "var(--font-mono)",
-      // Inverted: bg is the text color, text is the bg color
-      background: "var(--text)",
-      color: "var(--bg)",
-    }}>
-      {letter}
-    </span>
+      background: "var(--text)", color: "var(--bg)",
+    }}>{letter}</span>
   );
 }
 
 export default function StoryCard({
   story, onEdit, onArchive, onRestore, onRatingChange, onFocus,
-  condensed, kwData, onKwSave, onKwReset,
+  condensed, storyMode,
+  kwData, onKwSave, onKwReset,
+  carData, onCarSave, onCarReset,
 }) {
   const status = story.status || "Active";
   const ss = STATUS_STYLES[status] || STATUS_STYLES.Active;
+  const isCar = storyMode === "CA2R";
+
+  // Build car object from story fields (Notion-stored) or override from carData cache
+  const carFromNotion = story.car2r_generated ? {
+    context:    story.car2r_context,
+    approach1:  story.car2r_approach1,
+    approach2:  story.car2r_approach2,
+    result:     story.car2r_result,
+    coachNotes: story.car2r_coach,
+  } : null;
+  const activeCar = carData || carFromNotion;
 
   function handleRating(n) {
     onRatingChange(story.id, n);
     patchStory(story.id, { "Star Rating": n }).catch(console.error);
   }
 
+  function handleCarGenerated(car) {
+    onCarSave(car);
+    // Persist to Notion in background
+    saveCA2R(story.id, car).catch(console.error);
+  }
+
   function copyToClipboard() {
-    const lines = [
+    const lines = isCar && activeCar ? [
+      `STORY: ${story.title}`,
+      "",
+      `CONTEXT:\n${activeCar.context}`,
+      "",
+      `APPROACH (SYSTEM):\n${activeCar.approach1}`,
+      "",
+      `APPROACH (DETAIL):\n${activeCar.approach2}`,
+      "",
+      `RESULT:\n${activeCar.result}`,
+      activeCar.coachNotes ? `\nCOACH NOTES:\n${activeCar.coachNotes}` : "",
+    ] : [
       `STORY: ${story.title}`,
       story.context ? `Role: ${story.context}` : "",
       "",
@@ -72,26 +93,57 @@ export default function StoryCard({
       `ACTION:\n${story.action}`,
       "",
       `RESULT:\n${story.result}`,
-    ].filter(l => l !== undefined).join("\n");
-    navigator.clipboard.writeText(lines).catch(() => {});
+    ];
+    navigator.clipboard.writeText(lines.filter(l => l !== undefined).join("\n")).catch(() => {});
   }
 
-  // Keyword suggestions block — shown below star rating in both views
-  const kwBlock = (
-    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid var(--section-border)" }}>
-      <KeywordSuggestions
-        story={story}
-        kwData={kwData}
-        onSave={onKwSave}
-        onReset={onKwReset}
-        condensed={condensed}
-      />
+  const cardHeader = (
+    <div style={{ marginBottom: condensed ? 6 : 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: TAN_TITLE, lineHeight: 1.4, flex: 1 }}>
+          {story.title || "Untitled"}
+        </h3>
+        <span style={{
+          fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 500, flexShrink: 0,
+          background: ss.bg, color: ss.text, border: `0.5px solid ${ss.border}`,
+        }}>{status}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
+        {story.year && (
+          <span style={{
+            fontSize: 10, padding: "1px 7px", borderRadius: 20, fontFamily: "var(--font-mono)",
+            background: "var(--surface2)", color: "var(--text2)",
+            border: "0.5px solid var(--border2)", fontWeight: 500,
+          }}>{story.year}</span>
+        )}
+        {story.context && (
+          <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
+        )}
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <StarRating value={story.rating || 0} onChange={handleRating} size={14} />
+      </div>
+      {/* Keywords + CA2R buttons — split two-column */}
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid var(--section-border)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        <KeywordSuggestions story={story} kwData={kwData} onSave={onKwSave} onReset={onKwReset} condensed={condensed} />
+        <div>
+          {activeCar ? (
+            <button onClick={() => onCarReset(story.id)} style={{
+              width: "100%", fontSize: 11, padding: "6px 8px", borderRadius: 8, cursor: "pointer",
+              border: "0.5px solid var(--border2)", background: "transparent",
+              color: "var(--text3)", fontFamily: "var(--font)",
+            }}>Reset CA²R</button>
+          ) : (
+            <CA2RGenerateButton story={story} onGenerated={handleCarGenerated} />
+          )}
+        </div>
+      </div>
     </div>
   );
 
   const actionRow = (
     <div style={{
-      display: "flex", gap: 6, marginTop: 10, paddingTop: 10,
+      display: "flex", gap: 6, marginTop: condensed ? 10 : 12, paddingTop: condensed ? 8 : 10,
       borderTop: "0.5px solid var(--section-border)",
     }}>
       <button onClick={() => onFocus(story)} style={btnStyle("focus")}>Focus</button>
@@ -104,113 +156,79 @@ export default function StoryCard({
     </div>
   );
 
+  const tagsRow = (
+    <>
+      {story.tags?.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 12 }}>
+          {story.tags.map(tag => {
+            const tc = TAG_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860" };
+            return (
+              <span key={tag} style={{
+                fontSize: 10, padding: "2px 8px", borderRadius: 20,
+                background: tc.bg, color: tc.text, fontWeight: 500,
+              }}>{tag}</span>
+            );
+          })}
+        </div>
+      )}
+      <OutcomeTags outcomes={story.outcomes || []} />
+    </>
+  );
+
   return (
     <div style={{
       background: "var(--card-bg)",
       border: `1.5px solid ${TAN_BORDER}`,
       borderRadius: 16,
       padding: condensed ? "1rem" : "1.25rem",
-      display: "flex",
-      flexDirection: "column",
+      display: "flex", flexDirection: "column",
       fontFamily: "var(--font)",
       boxShadow: `0 0 0 3px ${TAN_GLOW}`,
-      transition: "box-shadow 0.15s",
     }}>
+      {cardHeader}
 
-      {/* ── Header — always visible ────────────────────────────────────────── */}
-      <div style={{ marginBottom: condensed ? 6 : 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: TAN_TITLE, lineHeight: 1.4, flex: 1 }}>
-            {story.title || "Untitled"}
-          </h3>
-          <span style={{
-            fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 500, flexShrink: 0,
-            background: ss.bg, color: ss.text, border: `0.5px solid ${ss.border}`,
-          }}>
-            {status}
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
-          {story.year && (
-            <span style={{
-              fontSize: 10, padding: "1px 7px", borderRadius: 20, fontFamily: "var(--font-mono)",
-              background: "var(--surface2)", color: "var(--text2)",
-              border: "0.5px solid var(--border2)", fontWeight: 500,
-            }}>{story.year}</span>
-          )}
-          {story.context && (
-            <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
-          )}
-        </div>
-
-        {/* Star rating — shown in both views */}
-        <div style={{ marginTop: 8 }}>
-          <StarRating value={story.rating || 0} onChange={handleRating} size={14} />
-        </div>
-
-        {/* Keywords sit directly under rating in both views — #3 */}
-        {kwBlock}
-      </div>
-
-      {/* ── CONDENSED: situation snippet + 1 soundbite + tags + actions ────── */}
       {condensed ? (
         <div>
-          <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.55, margin: 0 }}>
-            {truncate(story.situation, 120)}
-          </p>
-          {story.tags?.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 8 }}>
-              {story.tags.map(tag => {
-                const tc = TAG_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860" };
-                return (
-                  <span key={tag} style={{
-                    fontSize: 10, padding: "2px 7px", borderRadius: 20,
-                    background: tc.bg, color: tc.text, fontWeight: 500,
-                  }}>{tag}</span>
-                );
-              })}
-            </div>
-          )}
+          {isCar && activeCar
+            ? <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.55, margin: 0 }}>
+                {truncate(activeCar.context, 120)}
+              </p>
+            : <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.55, margin: 0 }}>
+                {truncate(story.situation, 120)}
+              </p>
+          }
+          {tagsRow}
           {actionRow}
         </div>
       ) : (
-        /* ── FULL: all STAR sections + tags + actions ─────────────────────── */
         <>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {[
-              { key: "situation", label: "S", full: "Situation" },
-              { key: "task",      label: "T", full: "Task" },
-              { key: "action",    label: "A", full: "Action" },
-              { key: "result",    label: "R", full: "Result" },
-            ].map(({ key, label, full }) => (
-              <div key={key} style={{ borderTop: "0.5px solid var(--section-border)", paddingTop: 8, marginTop: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                  <StarLabel letter={label} />
-                  <span style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    {full}
-                  </span>
+          {isCar ? (
+            activeCar
+              ? <CA2RCardView car={activeCar} condensed={false} />
+              : <div style={{ fontSize: 12, color: "var(--text3)", fontStyle: "italic", marginTop: 8 }}>
+                  Click "Generate CA²R" above to create your CA²R version of this story.
                 </div>
-                <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.6 }}>
-                  {story[key] || <span style={{ color: "var(--text3)", fontStyle: "italic" }}>Not filled in</span>}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {story.tags?.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 12 }}>
-              {story.tags.map(tag => {
-                const tc = TAG_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860" };
-                return (
-                  <span key={tag} style={{
-                    fontSize: 10, padding: "2px 8px", borderRadius: 20,
-                    background: tc.bg, color: tc.text, fontWeight: 500,
-                  }}>{tag}</span>
-                );
-              })}
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {[
+                { key: "situation", label: "S", full: "Situation" },
+                { key: "task",      label: "T", full: "Task" },
+                { key: "action",    label: "A", full: "Action" },
+                { key: "result",    label: "R", full: "Result" },
+              ].map(({ key, label, full }) => (
+                <div key={key} style={{ borderTop: "0.5px solid var(--section-border)", paddingTop: 8, marginTop: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                    <StarLabel letter={label} />
+                    <span style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{full}</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.6 }}>
+                    {story[key] || <span style={{ color: "var(--text3)", fontStyle: "italic" }}>Not filled in</span>}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
-
+          {tagsRow}
           {actionRow}
         </>
       )}
