@@ -159,19 +159,33 @@ export default function StoryCard({
   const tagsRow = (
     <>
       {story.tags?.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 12 }}>
-          {story.tags.map(tag => {
-            const tc = TAG_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860" };
-            return (
-              <span key={tag} style={{
-                fontSize: 10, padding: "2px 8px", borderRadius: 20,
-                background: tc.bg, color: tc.text, fontWeight: 500,
-              }}>{tag}</span>
-            );
-          })}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+          <span style={{
+            fontSize: 9, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase",
+            letterSpacing: "0.07em", paddingTop: 3, flexShrink: 0, whiteSpace: "nowrap",
+          }}>Impact</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {story.tags.map(tag => {
+              const tc = TAG_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860" };
+              return (
+                <span key={tag} style={{
+                  fontSize: 10, padding: "2px 8px", borderRadius: 20,
+                  background: tc.bg, color: tc.text, fontWeight: 500,
+                }}>{tag}</span>
+              );
+            })}
+          </div>
         </div>
       )}
-      <OutcomeTags outcomes={story.outcomes || []} />
+      {(story.outcomes || []).length > 0 && (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+          <span style={{
+            fontSize: 9, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase",
+            letterSpacing: "0.07em", paddingTop: 3, flexShrink: 0, whiteSpace: "nowrap",
+          }}>Outcomes</span>
+          <OutcomeTags outcomes={story.outcomes || []} />
+        </div>
+      )}
     </>
   );
 

@@ -166,20 +166,35 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
           ))
         )}
 
-        {/* Tags */}
+        {/* Tags — Impact (competency) */}
         {story.tags?.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 16 }}>
-            {story.tags.map((tag) => {
-              const tc = TAG_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860" };
-              return (
-                <span key={tag} style={{
-                  fontSize: 11, padding: "3px 10px", borderRadius: 20,
-                  background: tc.bg, color: tc.text, fontWeight: 500,
-                }}>
-                  {tag}
-                </span>
-              );
-            })}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+            <span style={{
+              fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase",
+              letterSpacing: "0.07em", paddingTop: 4, flexShrink: 0, whiteSpace: "nowrap",
+            }}>Impact</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {story.tags.map((tag) => {
+                const tc = TAG_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860" };
+                return (
+                  <span key={tag} style={{
+                    fontSize: 11, padding: "3px 10px", borderRadius: 20,
+                    background: tc.bg, color: tc.text, fontWeight: 500,
+                  }}>{tag}</span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Tags — Outcomes */}
+        {(story.outcomes || []).length > 0 && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <span style={{
+              fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase",
+              letterSpacing: "0.07em", paddingTop: 4, flexShrink: 0, whiteSpace: "nowrap",
+            }}>Outcomes</span>
+            <OutcomeTags outcomes={story.outcomes || []} />
           </div>
         )}
 
