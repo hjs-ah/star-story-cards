@@ -322,7 +322,7 @@ export default function App() {
         <StoryModal story={editingStory} onSave={handleSave} onClose={closeModal}
           saving={saving} availableTags={allTagsInUse} />
       )}
-      {focusStory && <FocusOverlay story={focusStory} onClose={() => setFocusStory(null)} onEdit={openEdit} carData={carCache[focusStory?.id] || null} onCarSave={(data) => setCarCache(c => ({ ...c, [focusStory.id]: data }))} />}
+      {focusStory && <FocusOverlay story={focusStory} onClose={() => setFocusStory(null)} onEdit={openEdit} storyMode={storyMode} carData={carCache[focusStory?.id] || null} onCarSave={(data) => setCarCache(c => ({ ...c, [focusStory.id]: data }))} />}
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
     </div>
   );

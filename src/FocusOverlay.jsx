@@ -1,6 +1,6 @@
 import { useState } from "react";
 import StarRating from "./StarRating";
-import { CA2RCardView, CA2RGenerateButton, OutcomeTags, OUTCOME_COLORS } from "./CA2RGenerator";
+import { CA2RCardView, CA2RGenerateButton, OutcomeTags } from "./CA2RGenerator";
 import { saveCA2R } from "./notionService";
 
 const TAG_COLORS = {
@@ -20,14 +20,17 @@ const STATUS_STYLES = {
   Archived: { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" },
 };
 
-export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSave }) {
+// storyMode is passed from parent — no local toggle, inherits global mode
+export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSave, storyMode }) {
   if (!story) return null;
-  const [focusMode, setFocusMode] = useState("STAR");
-  const isCar = focusMode === "CA2R";
 
+  const isCar = storyMode === "CA2R";
   const carFromNotion = story.car2r_generated ? {
-    context: story.car2r_context, approach1: story.car2r_approach1,
-    approach2: story.car2r_approach2, result: story.car2r_result, coachNotes: story.car2r_coach,
+    context:    story.car2r_context,
+    approach1:  story.car2r_approach1,
+    approach2:  story.car2r_approach2,
+    result:     story.car2r_result,
+    coachNotes: story.car2r_coach,
   } : null;
   const activeCar = carData || carFromNotion;
 
@@ -35,11 +38,23 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
     onCarSave && onCarSave(car);
     saveCA2R(story.id, car).catch(console.error);
   }
+
   const status = story.status || "Active";
   const ss = STATUS_STYLES[status] || STATUS_STYLES.Active;
 
   function copyToClipboard() {
-    const text = [
+    const lines = isCar && activeCar ? [
+      `STORY: ${story.title}`,
+      "",
+      `CONTEXT:\n${activeCar.context}`,
+      "",
+      `APPROACH (SYSTEM):\n${activeCar.approach1}`,
+      "",
+      `APPROACH (DETAIL):\n${activeCar.approach2}`,
+      "",
+      `RESULT:\n${activeCar.result}`,
+      activeCar.coachNotes ? `\nCOACH NOTES:\n${activeCar.coachNotes}` : "",
+    ] : [
       `STORY: ${story.title}`,
       story.context ? `Role: ${story.context}` : "",
       "",
@@ -50,59 +65,47 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
       `ACTION:\n${story.action}`,
       "",
       `RESULT:\n${story.result}`,
-    ].filter(Boolean).join("\n");
-    navigator.clipboard.writeText(text).catch(() => {});
+    ];
+    navigator.clipboard.writeText(lines.filter(Boolean).join("\n")).catch(() => {});
   }
 
   return (
     <div
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onClick={e => e.target === e.currentTarget && onClose()}
       style={{
         position: "fixed", inset: 0, zIndex: 500,
-        background: "rgba(0,0,0,0.75)",
-        backdropFilter: "blur(2px)",
+        background: "rgba(0,0,0,0.75)", backdropFilter: "blur(2px)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "1.5rem",
-        animation: "fadeIn 0.18s ease",
+        padding: "1.5rem", animation: "fadeIn 0.18s ease",
       }}
     >
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
-      `}</style>
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }`}</style>
 
       <div style={{
         background: "var(--card-bg)",
         border: "2px solid var(--accent-border)",
         borderRadius: 20,
         boxShadow: "0 0 0 4px var(--accent-bg), 0 32px 80px rgba(0,0,0,0.4)",
-        width: "100%",
-        maxWidth: 680,
-        maxHeight: "88vh",
-        overflowY: "auto",
-        padding: "2rem",
-        fontFamily: "var(--font)",
+        width: "100%", maxWidth: 680, maxHeight: "88vh", overflowY: "auto",
+        padding: "2rem", fontFamily: "var(--font)",
       }}>
-        {/* Header: mode toggle + close */}
+        {/* Header — mode badge + close */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-          <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 3 }}>
-            {["STAR", "CA²R"].map(m => (
-              <button key={m} onClick={() => setFocusMode(m)} style={{
-                padding: "3px 12px", borderRadius: 6, border: "none", cursor: "pointer",
-                background: focusMode === m ? "var(--surface)" : "transparent",
-                color: focusMode === m ? "var(--text)" : "var(--text3)",
-                fontFamily: "var(--font)", fontSize: 11, fontWeight: focusMode === m ? 500 : 400,
-                boxShadow: focusMode === m ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
-                transition: "all 0.12s",
-              }}>{m}</button>
-            ))}
-          </div>
+          <span style={{
+            fontSize: 10, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase",
+            padding: "3px 10px", borderRadius: 20, border: "0.5px solid var(--border2)",
+            color: isCar ? "#0F6E56" : "var(--text3)",
+            background: isCar ? "#E1F5EE" : "var(--surface2)",
+          }}>
+            {isCar ? "CA²R view" : "STAR view"}
+          </span>
           <button onClick={onClose} style={{
             background: "none", border: "0.5px solid var(--border)", borderRadius: 8,
             padding: "3px 10px", cursor: "pointer", fontSize: 13, color: "var(--text2)",
           }}>✕</button>
         </div>
 
-        {/* Title row */}
+        {/* Title + status */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", lineHeight: 1.3, flex: 1 }}>
             {story.title || "Untitled"}
@@ -110,11 +113,10 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
           <span style={{
             fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 500, flexShrink: 0,
             background: ss.bg, color: ss.text, border: `0.5px solid ${ss.border}`,
-          }}>
-            {status}
-          </span>
+          }}>{status}</span>
         </div>
 
+        {/* Year + role */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
           {story.year && (
             <span style={{
@@ -128,26 +130,28 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
           )}
         </div>
 
+        {/* Star rating */}
         <div style={{ marginBottom: 16 }}>
           <StarRating value={story.rating || 0} size={18} readonly />
         </div>
 
-        {/* STAR or CA²R content */}
+        {/* Story content — STAR or CA²R */}
         {isCar ? (
           activeCar
             ? <CA2RCardView car={activeCar} condensed={false} />
-            : <div style={{ marginTop: 12 }}>
+            : (
+              <div style={{ marginTop: 12 }}>
                 <p style={{ fontSize: 13, color: "var(--text3)", fontStyle: "italic", marginBottom: 10 }}>
-                  No CA²R version generated yet. Generate one to compare delivery approaches.
+                  No CA²R version yet. Generate one from the card first, or use the button below.
                 </p>
                 <CA2RGenerateButton story={story} onGenerated={handleCarGenerated} />
               </div>
+            )
         ) : (
-          [
-            { key: "situation", label: "S", full: "Situation", color: "#185FA5" },
-            { key: "task",      label: "T", full: "Task",      color: "#2E7D4F" },
-            { key: "action",    label: "A", full: "Action",    color: "#C47B10" },
-            { key: "result",    label: "R", full: "Result",    color: "#6B3FA0" },
+          [{key:"situation",label:"S",full:"Situation",color:"#185FA5"},
+           {key:"task",     label:"T",full:"Task",      color:"#2E7D4F"},
+           {key:"action",   label:"A",full:"Action",    color:"#C47B10"},
+           {key:"result",   label:"R",full:"Result",    color:"#6B3FA0"},
           ].map(({ key, label, full, color }) => (
             <div key={key} style={{ borderTop: "0.5px solid var(--section-border)", paddingTop: 14, marginTop: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -166,15 +170,15 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
           ))
         )}
 
-        {/* Tags — Impact (competency) */}
+        {/* Tags — Impact */}
         {story.tags?.length > 0 && (
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
             <span style={{
-              fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase",
-              letterSpacing: "0.07em", paddingTop: 4, flexShrink: 0, whiteSpace: "nowrap",
+              fontSize: 9, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase",
+              letterSpacing: "0.08em", paddingTop: 4, flexShrink: 0,
             }}>Impact</span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {story.tags.map((tag) => {
+              {story.tags.map(tag => {
                 const tc = TAG_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860" };
                 return (
                   <span key={tag} style={{
@@ -191,15 +195,18 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
         {(story.outcomes || []).length > 0 && (
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
             <span style={{
-              fontSize: 10, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase",
-              letterSpacing: "0.07em", paddingTop: 4, flexShrink: 0, whiteSpace: "nowrap",
+              fontSize: 9, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase",
+              letterSpacing: "0.08em", paddingTop: 4, flexShrink: 0,
             }}>Outcomes</span>
             <OutcomeTags outcomes={story.outcomes || []} />
           </div>
         )}
 
-        {/* Footer actions */}
-        <div style={{ display: "flex", gap: 8, marginTop: 20, paddingTop: 16, borderTop: "0.5px solid var(--section-border)" }}>
+        {/* Footer */}
+        <div style={{
+          display: "flex", gap: 8, marginTop: 20, paddingTop: 16,
+          borderTop: "0.5px solid var(--section-border)",
+        }}>
           <button onClick={() => { onEdit(story); onClose(); }} style={focusBtn(true)}>Edit story</button>
           <button onClick={copyToClipboard} style={focusBtn(false)}>Copy to clipboard</button>
         </div>
@@ -214,7 +221,6 @@ function focusBtn(primary) {
     border: primary ? "none" : "0.5px solid var(--border)",
     background: primary ? "var(--text)" : "transparent",
     color: primary ? "var(--bg)" : "var(--text2)",
-    fontFamily: "var(--font)", fontWeight: primary ? 500 : 400,
-    transition: "all 0.12s",
+    fontFamily: "var(--font)", fontWeight: primary ? 500 : 400, transition: "all 0.12s",
   };
 }
