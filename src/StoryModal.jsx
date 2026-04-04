@@ -17,6 +17,13 @@ export default function StoryModal({ story, onSave, onClose, saving, availableTa
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
+  function toggleOutcome(o) {
+    setForm(f => ({
+      ...f,
+      outcomes: f.outcomes.includes(o) ? f.outcomes.filter(x => x !== o) : [...f.outcomes, o],
+    }));
+  }
+
   function toggleTag(tag) {
     setForm(f => ({
       ...f,
@@ -143,10 +150,25 @@ export default function StoryModal({ story, onSave, onClose, saving, availableTa
           </div>
         </Field>
 
+        <Field label="Outcomes">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, paddingTop: 2 }}>
+            {ALL_OUTCOMES.map(o => (
+              <button key={o} onClick={() => toggleOutcome(o)} style={{
+                fontSize: 11, padding: "3px 10px", borderRadius: 20, cursor: "pointer",
+                border: form.outcomes.includes(o) ? "0.5px solid #0F6E56" : "0.5px solid var(--border2)",
+                background: form.outcomes.includes(o) ? "#E1F5EE" : "transparent",
+                color: form.outcomes.includes(o) ? "#0F6E56" : "var(--text2)",
+                fontFamily: "var(--font)", fontWeight: form.outcomes.includes(o) ? 500 : 400,
+                transition: "all 0.1s",
+              }}>{o}</button>
+            ))}
+          </div>
+        </Field>
+
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: "1.25rem" }}>
           <button onClick={onClose} style={actionBtn(false)}>Cancel</button>
           <button
-            onClick={() => onSave({ ...form, year: form.year ? Number(form.year) : null })}
+            onClick={() => onSave({ ...form, year: form.year ? Number(form.year) : null, outcomes: form.outcomes })}
             disabled={!form.title.trim() || saving}
             style={{ ...actionBtn(true), opacity: (!form.title.trim() || saving) ? 0.4 : 1 }}
           >

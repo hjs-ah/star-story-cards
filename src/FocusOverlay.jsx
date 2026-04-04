@@ -1,4 +1,7 @@
+import { useState } from "react";
 import StarRating from "./StarRating";
+import { CA2RCardView, CA2RGenerateButton, OutcomeTags, OUTCOME_COLORS } from "./CA2RGenerator";
+import { saveCA2R } from "./notionService";
 
 const TAG_COLORS = {
   Leadership:        { bg: "#EBF2FB", text: "#185FA5" },
@@ -17,8 +20,21 @@ const STATUS_STYLES = {
   Archived: { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" },
 };
 
-export default function FocusOverlay({ story, onClose, onEdit }) {
+export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSave }) {
   if (!story) return null;
+  const [focusMode, setFocusMode] = useState("STAR");
+  const isCar = focusMode === "CA2R";
+
+  const carFromNotion = story.car2r_generated ? {
+    context: story.car2r_context, approach1: story.car2r_approach1,
+    approach2: story.car2r_approach2, result: story.car2r_result, coachNotes: story.car2r_coach,
+  } : null;
+  const activeCar = carData || carFromNotion;
+
+  function handleCarGenerated(car) {
+    onCarSave && onCarSave(car);
+    saveCA2R(story.id, car).catch(console.error);
+  }
   const status = story.status || "Active";
   const ss = STATUS_STYLES[status] || STATUS_STYLES.Active;
 
@@ -66,8 +82,20 @@ export default function FocusOverlay({ story, onClose, onEdit }) {
         padding: "2rem",
         fontFamily: "var(--font)",
       }}>
-        {/* Close button */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.5rem" }}>
+        {/* Header: mode toggle + close */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+          <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 3 }}>
+            {["STAR", "CA²R"].map(m => (
+              <button key={m} onClick={() => setFocusMode(m)} style={{
+                padding: "3px 12px", borderRadius: 6, border: "none", cursor: "pointer",
+                background: focusMode === m ? "var(--surface)" : "transparent",
+                color: focusMode === m ? "var(--text)" : "var(--text3)",
+                fontFamily: "var(--font)", fontSize: 11, fontWeight: focusMode === m ? 500 : 400,
+                boxShadow: focusMode === m ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+                transition: "all 0.12s",
+              }}>{m}</button>
+            ))}
+          </div>
           <button onClick={onClose} style={{
             background: "none", border: "0.5px solid var(--border)", borderRadius: 8,
             padding: "3px 10px", cursor: "pointer", fontSize: 13, color: "var(--text2)",
@@ -104,37 +132,39 @@ export default function FocusOverlay({ story, onClose, onEdit }) {
           <StarRating value={story.rating || 0} size={18} readonly />
         </div>
 
-        {/* STAR sections */}
-        {[
-          { key: "situation", label: "S", full: "Situation", color: "#185FA5" },
-          { key: "task",      label: "T", full: "Task",      color: "#2E7D4F" },
-          { key: "action",    label: "A", full: "Action",    color: "#C47B10" },
-          { key: "result",    label: "R", full: "Result",    color: "#6B3FA0" },
-        ].map(({ key, label, full, color }) => (
-          <div key={key} style={{
-            borderTop: "0.5px solid var(--section-border)",
-            paddingTop: 14, marginTop: 14,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{
-                fontSize: 11, fontWeight: 700,
-                background: color + "18",
-                color: color,
-                padding: "2px 8px", borderRadius: 5,
-                fontFamily: "var(--font-mono)",
-                border: `0.5px solid ${color}40`,
-              }}>
-                {label}
-              </span>
-              <span style={{ fontSize: 11, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 500 }}>
-                {full}
-              </span>
+        {/* STAR or CA²R content */}
+        {isCar ? (
+          activeCar
+            ? <CA2RCardView car={activeCar} condensed={false} />
+            : <div style={{ marginTop: 12 }}>
+                <p style={{ fontSize: 13, color: "var(--text3)", fontStyle: "italic", marginBottom: 10 }}>
+                  No CA²R version generated yet. Generate one to compare delivery approaches.
+                </p>
+                <CA2RGenerateButton story={story} onGenerated={handleCarGenerated} />
+              </div>
+        ) : (
+          [
+            { key: "situation", label: "S", full: "Situation", color: "#185FA5" },
+            { key: "task",      label: "T", full: "Task",      color: "#2E7D4F" },
+            { key: "action",    label: "A", full: "Action",    color: "#C47B10" },
+            { key: "result",    label: "R", full: "Result",    color: "#6B3FA0" },
+          ].map(({ key, label, full, color }) => (
+            <div key={key} style={{ borderTop: "0.5px solid var(--section-border)", paddingTop: 14, marginTop: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 700,
+                  background: color + "18", color,
+                  padding: "2px 8px", borderRadius: 5,
+                  fontFamily: "var(--font-mono)", border: `0.5px solid ${color}40`,
+                }}>{label}</span>
+                <span style={{ fontSize: 11, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 500 }}>{full}</span>
+              </div>
+              <p style={{ fontSize: 14, color: "var(--mono-text)", lineHeight: 1.7 }}>
+                {story[key] || <span style={{ color: "var(--text3)", fontStyle: "italic" }}>Not filled in</span>}
+              </p>
             </div>
-            <p style={{ fontSize: 14, color: "var(--mono-text)", lineHeight: 1.7 }}>
-              {story[key] || <span style={{ color: "var(--text3)", fontStyle: "italic" }}>Not filled in</span>}
-            </p>
-          </div>
-        ))}
+          ))
+        )}
 
         {/* Tags */}
         {story.tags?.length > 0 && (

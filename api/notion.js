@@ -99,6 +99,13 @@ function pageToStory(page) {
     rating:    p["Star Rating"]?.number || 0,
     tags:      (p["Tags"]?.multi_select || []).map(t => t.name),
     year:      p["Year"]?.number || null,
+    outcomes:  (p["Outcomes"]?.multi_select || []).map(t => t.name),
+    car2r_context:   textOf(p["CA2R Context"]),
+    car2r_approach1: textOf(p["CA2R Approach1"]),
+    car2r_approach2: textOf(p["CA2R Approach2"]),
+    car2r_result:    textOf(p["CA2R Result"]),
+    car2r_coach:     textOf(p["CA2R Coach Notes"]),
+    car2r_generated: p["CA2R Generated"]?.checkbox || false,
   };
 }
 
@@ -115,6 +122,13 @@ function buildProperties(story, partial = false) {
   if (!partial || has("rating"))    props["Star Rating"]  = { number:    Number(story.rating || 0) };
   if (!partial || has("tags"))      props["Tags"]         = { multi_select: (story.tags || []).map(n => ({ name: n })) };
   if (!partial || has("year"))      props["Year"]         = { number: story.year ? Number(story.year) : null };
+  if (!partial || has("outcomes"))  props["Outcomes"]     = { multi_select: (story.outcomes || []).map(n => ({ name: n })) };
+  if (!partial || has("car2r_context"))   props["CA2R Context"]    = { rich_text: [{ text: { content: String(story.car2r_context || "") } }] };
+  if (!partial || has("car2r_approach1")) props["CA2R Approach1"]  = { rich_text: [{ text: { content: String(story.car2r_approach1 || "") } }] };
+  if (!partial || has("car2r_approach2")) props["CA2R Approach2"]  = { rich_text: [{ text: { content: String(story.car2r_approach2 || "") } }] };
+  if (!partial || has("car2r_result"))    props["CA2R Result"]     = { rich_text: [{ text: { content: String(story.car2r_result || "") } }] };
+  if (!partial || has("car2r_coach"))     props["CA2R Coach Notes"]= { rich_text: [{ text: { content: String(story.car2r_coach || "") } }] };
+  if (!partial || has("car2r_generated")) props["CA2R Generated"]  = { checkbox: story.car2r_generated === true };
   return props;
 }
 
