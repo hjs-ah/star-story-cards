@@ -47,14 +47,14 @@ CA²R stands for: Context → Approach¹ → Approach² → Result
 COACHING PHILOSOPHY:
 You are not just reformatting — you are a strategic thinking partner. Flag gaps, missed opportunities, and ways to strengthen delivery. The goal is to control the interviewer's emotional and cognitive state throughout the story.
 
-OUTPUT FORMAT (return ONLY valid JSON, no markdown, no preamble):
-{
-  "context": "The restructured Context section — why it matters, primed with result, you at center",
-  "approach1": "The system/MAP section — framework name + step names only, racing through methodology",
-  "approach2": "The step-by-step detail section — walk through each step with highlights, YOU-focused",
-  "result": "The result section — foreshadowed outcome repeated + extensions + GREAT-8 connections",
-  "coachNotes": "2-4 specific coaching observations: gaps, missed opportunities, ways to elevate delivery, which GREAT-8 categories this story hits strongest, suggested power phrases"
-}`;
+CRITICAL OUTPUT RULES:
+- Return ONLY a valid JSON object — no markdown, no backticks, no preamble, no explanation
+- Keep each field concise but complete — aim for 2-4 sentences per section
+- If the story content is sparse, work with what you have and flag gaps in coachNotes
+- The JSON must be complete and properly closed
+
+OUTPUT FORMAT:
+{"context":"...","approach1":"...","approach2":"...","result":"...","coachNotes":"..."}`;
 
 export default async function handler(req) {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -62,30 +62,35 @@ export default async function handler(req) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return errResp("ANTHROPIC_API_KEY not set", 500);
 
-  const { story } = await req.json();
+  let story;
+  try {
+    const body = await req.json();
+    story = body.story;
+  } catch {
+    return errResp("Invalid request body", 400);
+  }
 
-  const userPrompt = `Restructure and coach this STAR story into CA²R format:
+  // Truncate very long fields to prevent token overflow
+  function trunc(s, max = 600) {
+    if (!s) return "";
+    return s.length > max ? s.slice(0, max) + "..." : s;
+  }
 
-STORY TITLE: ${story.title}
-ROLE/CONTEXT: ${story.context || ""}
+  const userPrompt = `Restructure and coach this STAR story into CA²R format. Return ONLY valid JSON.
+
+STORY TITLE: ${story.title || "Untitled"}
+ROLE/CONTEXT: ${trunc(story.context, 200)}
 YEAR: ${story.year || ""}
-
-SITUATION (S):
-${story.situation || ""}
-
-TASK (T):
-${story.task || ""}
-
-ACTION (A):
-${story.action || ""}
-
-RESULT (R):
-${story.result || ""}
-
 COMPETENCY TAGS: ${(story.tags || []).join(", ")}
-OUTCOME CATEGORIES ALREADY TAGGED: ${(story.outcomes || []).join(", ")}
+OUTCOME CATEGORIES: ${(story.outcomes || []).join(", ")}
 
-Restructure into CA²R format AND provide coaching notes. Return ONLY valid JSON.`;
+SITUATION: ${trunc(story.situation, 600)}
+TASK: ${trunc(story.task, 400)}
+ACTION: ${trunc(story.action, 800)}
+RESULT: ${trunc(story.result, 400)}
+
+Return this exact JSON structure with no other text:
+{"context":"...","approach1":"...","approach2":"...","result":"...","coachNotes":"..."}`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -96,7 +101,7 @@ Restructure into CA²R format AND provide coaching notes. Return ONLY valid JSON
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1200,
+      max_tokens: 2000,
       system: CA2R_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     }),
@@ -105,26 +110,37 @@ Restructure into CA²R format AND provide coaching notes. Return ONLY valid JSON
   const data = await res.json();
   if (!res.ok) return errResp(data.error?.message || "Haiku error", res.status);
 
-  const text = data.content?.[0]?.text || "{}";
+  const raw = data.content?.[0]?.text || "";
+
+  // Robust JSON extraction — handle markdown fences or extra text
+  let parsed;
   try {
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
-    return new Response(JSON.stringify(parsed), {
-      headers: { "Content-Type": "application/json", ...CORS },
-    });
-  } catch {
-    return errResp("Could not parse CA²R output", 500);
+    // Try direct parse first
+    const clean = raw.replace(/```json|```/g, "").trim();
+    // Find the first { and last } to extract JSON even with surrounding text
+    const start = clean.indexOf("{");
+    const end = clean.lastIndexOf("}");
+    if (start === -1 || end === -1) throw new Error("No JSON object found");
+    parsed = JSON.parse(clean.slice(start, end + 1));
+  } catch (e) {
+    // Return a structured error with the raw output for debugging
+    return new Response(
+      JSON.stringify({
+        error: "Could not parse CA²R output",
+        raw: raw.slice(0, 500),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json", ...CORS } }
+    );
   }
 
-  function errResp(msg, status) {
-    return new Response(JSON.stringify({ error: msg }), {
-      status, headers: { "Content-Type": "application/json", ...CORS },
-    });
-  }
+  return new Response(JSON.stringify(parsed), {
+    headers: { "Content-Type": "application/json", ...CORS },
+  });
 }
 
 function errResp(msg, status) {
   return new Response(JSON.stringify({ error: msg }), {
-    status, headers: { "Content-Type": "application/json", ...CORS },
+    status,
+    headers: { "Content-Type": "application/json", ...CORS },
   });
 }

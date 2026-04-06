@@ -36,7 +36,6 @@ export default async function handler(req) {
     });
   }
 
-  // Build a flat key/value map from the Setting/Value rows
   const cfg = {};
   for (const page of data.results || []) {
     const p = page.properties;
