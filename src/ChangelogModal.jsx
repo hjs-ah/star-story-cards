@@ -1,21 +1,36 @@
 import { useState, useEffect } from "react";
 
 const STATUS_STYLE = {
-  Released:    { bg: "#E8F5ED", text: "#2E7D4F", border: "#A3D4B4" },
+  Released:      { bg: "#E8F5ED", text: "#2E7D4F", border: "#A3D4B4" },
   "In Progress": { bg: "#FDF3DC", text: "#C47B10", border: "#F0D08A" },
-  Planned:     { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" },
+  Planned:       { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" },
 };
 
 export default function ChangelogModal({ onClose }) {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState("");
+  const [error, setError]     = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     fetch("/api/changelog")
-      .then(r => r.json())
-      .then(data => { setEntries(data); setLoading(false); })
-      .catch(() => { setError("Could not load changelog."); setLoading(false); });
+      .then(r => {
+        if (!r.ok) throw new Error(`API returned ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        if (!cancelled) {
+          setEntries(Array.isArray(data) ? data : []);
+          setLoading(false);
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          setError("Changelog unavailable — make sure api/changelog.js is deployed.");
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -42,6 +57,7 @@ export default function ChangelogModal({ onClose }) {
           display: "flex", justifyContent: "space-between", alignItems: "center",
           padding: "1.25rem 1.5rem 1rem",
           borderBottom: "0.5px solid var(--border)",
+          flexShrink: 0,
         }}>
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--text)", margin: 0 }}>
@@ -57,16 +73,25 @@ export default function ChangelogModal({ onClose }) {
           }}>✕</button>
         </div>
 
-        {/* Entries */}
+        {/* Body */}
         <div style={{ overflowY: "auto", padding: "0.75rem 1.5rem 1.5rem" }}>
           {loading && (
             <p style={{ fontSize: 13, color: "var(--text3)", textAlign: "center", padding: "2rem 0" }}>
               Loading…
             </p>
           )}
-          {error && (
-            <p style={{ fontSize: 13, color: "#B84A2E", textAlign: "center", padding: "2rem 0" }}>
+          {!loading && error && (
+            <div style={{
+              fontSize: 12, color: "#B84A2E", background: "#FFF0EC",
+              border: "0.5px solid #F5B8A8", borderRadius: 8, padding: "10px 14px",
+              marginTop: 8,
+            }}>
               {error}
+            </div>
+          )}
+          {!loading && !error && entries.length === 0 && (
+            <p style={{ fontSize: 13, color: "var(--text3)", textAlign: "center", padding: "2rem 0" }}>
+              No changelog entries found.
             </p>
           )}
           {!loading && !error && entries.map((entry, i) => {
@@ -79,19 +104,23 @@ export default function ChangelogModal({ onClose }) {
                 marginTop: i > 0 ? "1rem" : 0,
                 opacity: isPlanned ? 0.75 : 1,
               }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                  <span style={{
-                    fontSize: 13, fontWeight: 600, color: "var(--text)",
-                  }}>{entry.version}</span>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  marginBottom: 6, flexWrap: "wrap",
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                    {entry.version}
+                  </span>
                   <span style={{
                     fontSize: 9, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
                     background: ss.bg, color: ss.text, border: `0.5px solid ${ss.border}`,
                     textTransform: "uppercase", letterSpacing: "0.06em",
                   }}>{entry.status}</span>
                   {entry.date && (
-                    <span style={{ fontSize: 11, color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
-                      {entry.date}
-                    </span>
+                    <span style={{
+                      fontSize: 11, color: "var(--text3)",
+                      fontFamily: "var(--font-mono)",
+                    }}>{entry.date}</span>
                   )}
                 </div>
                 <p style={{
