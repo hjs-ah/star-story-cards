@@ -4,7 +4,7 @@ export default function SiteHeader({ cfg = {} }) {
   const name     = cfg.full_name || "Antone Holmes, MA";
   const role     = cfg.title     || "Practitioner of Strategy in Philanthropy, Theology, & Revenue Enablement";
   const location = cfg.location  || "United States";
-  const photo    = cfg.photo_url || "https://hjs-ah.github.io/AH-FE-2.0/ProHeadshot_web-copy.jpg";
+  const photo    = cfg.photo_url || "https://hjs-ah.github.io/AH-FE-2.0/assets/DrH_MultiM.png";
 
   const links = [
     { key: "social_medium",   label: "Medium",   icon: "medium"   },
