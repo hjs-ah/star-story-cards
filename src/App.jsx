@@ -5,6 +5,7 @@ import FocusOverlay from "./FocusOverlay";
 import { fetchStories, fetchSchema, createStory, updateStory, patchStory, fetchConfig } from "./notionService";
 import SiteHeader from "./SiteHeader";
 import CareerTimeline from "./CareerTimeline";
+import ChangelogModal from "./ChangelogModal";
 
 const STATUS_FILTERS = ["Active", "Draft", "Archived", "All"];
 const COL_OPTIONS = [1, 2, 3];
@@ -42,6 +43,7 @@ export default function App() {
   const [carCache, setCarCache]       = useState({});  // CA2R data keyed by story id
   const [storyMode, setStoryMode]     = useState("STAR"); // "STAR" | "CA2R"
   const [siteConfig, setSiteConfig]   = useState({});
+  const [showChangelog, setShowChangelog] = useState(false);
 
   useEffect(() => { document.body.classList.toggle("dark", dark); }, [dark]);
 
@@ -163,6 +165,19 @@ export default function App() {
               }}>{n}</button>
             ))}
           </div>
+          {/* Changelog button */}
+          <button
+            onClick={() => setShowChangelog(true)}
+            title="What's New"
+            style={{
+              fontSize: 11, padding: "0 10px", height: 32, borderRadius: 8,
+              border: "0.5px solid var(--border2)", background: "transparent",
+              color: "var(--text3)", cursor: "pointer", fontFamily: "var(--font)",
+              flexShrink: 0, whiteSpace: "nowrap",
+            }}
+          >
+            What's New
+          </button>
           {/* STAR / CA²R global toggle */}
           <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 3, flexShrink: 0 }}>
             {[["STAR","STAR"], ["CA²R","CA2R"]].map(([label,val]) => (
@@ -323,6 +338,7 @@ export default function App() {
           saving={saving} availableTags={allTagsInUse} />
       )}
       {focusStory && <FocusOverlay story={focusStory} onClose={() => setFocusStory(null)} onEdit={openEdit} storyMode={storyMode} carData={carCache[focusStory?.id] || null} onCarSave={(data) => setCarCache(c => ({ ...c, [focusStory.id]: data }))} />}
+      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
     </div>
   );

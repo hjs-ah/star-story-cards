@@ -204,12 +204,23 @@ export default function StoryCard({
       {condensed ? (
         <div>
           {isCar && activeCar
-            ? <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.55, margin: 0 }}>
-                {truncate(activeCar.context, 120)}
+            ? <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.6, margin: 0 }}>
+                {truncate(activeCar.context, 160)}
               </p>
-            : <p style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.55, margin: 0 }}>
-                {truncate(story.situation, 120)}
-              </p>
+            : <div style={{ fontSize: 12, color: "var(--mono-text)", lineHeight: 1.6 }}>
+                {story.situation && (
+                  <p style={{ margin: "0 0 4px" }}>{truncate(story.situation, 130)}</p>
+                )}
+                {story.result && (
+                  <p style={{ margin: 0, color: "var(--text2)" }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+                      letterSpacing: "0.07em", color: "#6B3FA0", marginRight: 4,
+                    }}>Result</span>
+                    {truncate(story.result, 100)}
+                  </p>
+                )}
+              </div>
           }
           {tagsRow}
           {actionRow}
