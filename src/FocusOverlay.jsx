@@ -1,7 +1,7 @@
 import { useState } from "react";
 import StarRating from "./StarRating";
-import { CA2RCardView, CA2RGenerateButton, OutcomeTags } from "./CA2RGenerator";
-import { saveCA2R } from "./notionService";
+import { CA2RCardView, CA2RGenerateButton, OutcomeTags, OUTCOME_COLORS } from "./CA2RGenerator";
+import { patchStory, saveCA2R } from "./notionService";
 
 const TAG_COLORS = {
   Leadership:        { bg: "#EBF2FB", text: "#185FA5" },
@@ -14,13 +14,74 @@ const TAG_COLORS = {
   Technical:         { bg: "#F1F0EE", text: "#5C5B56" },
 };
 
+const MM_COLORS = {
+  "Learn-Analyze-Unblock":     { bg: "#EBF2FB", text: "#185FA5", border: "#93BBE8" },
+  "Diagnose-Convene-Activate": { bg: "#F3EEF9", text: "#6B3FA0", border: "#C9AEE8" },
+  "Listen-Validate-Design":    { bg: "#E8F5ED", text: "#2E7D4F", border: "#A3D4B4" },
+  "Assess-Align-Execute":      { bg: "#FDF3DC", text: "#C47B10", border: "#F0D08A" },
+  "Build-Measure-Learn":       { bg: "#FDE8F0", text: "#A0346A", border: "#E8A8C8" },
+};
+
 const STATUS_STYLES = {
   Active:   { bg: "#E8F5ED", text: "#2E7D4F", border: "#A3D4B4" },
   Draft:    { bg: "#FDF3DC", text: "#C47B10", border: "#F0D08A" },
   Archived: { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" },
 };
 
-// storyMode is passed from parent — no local toggle, inherits global mode
+function MentalModelRow({ tags = [], steps }) {
+  const hasSteps = steps && steps.trim();
+  const hasTags = tags && tags.length > 0;
+  if (!hasTags && !hasSteps) return null;
+
+  // Parse steps — split on →, -, –, or >
+  const parts = hasSteps
+    ? steps.split(/[→\-–>]+/).map(s => s.trim()).filter(Boolean)
+    : [];
+
+  return (
+    <div style={{
+      marginTop: 10, marginBottom: 4, padding: "7px 10px",
+      background: "var(--surface2)", borderRadius: 8,
+      border: "0.5px solid var(--border2)",
+    }}>
+      <span style={{
+        fontSize: 9, fontWeight: 700, color: "var(--text3)",
+        textTransform: "uppercase", letterSpacing: "0.08em",
+        display: "block", marginBottom: (hasTags || hasSteps) ? 5 : 0,
+      }}>Mental Model</span>
+
+      {hasTags && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: parts.length ? 6 : 0 }}>
+          {tags.map(tag => {
+            const c = MM_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" };
+            return (
+              <span key={tag} style={{
+                fontSize: 11, padding: "2px 10px", borderRadius: 20, fontWeight: 500,
+                background: c.bg, color: c.text, border: `0.5px solid ${c.border}`,
+              }}>{tag}</span>
+            );
+          })}
+        </div>
+      )}
+
+      {parts.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          {parts.map((step, i) => (
+            <span key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {i > 0 && <span style={{ fontSize: 14, color: "var(--text3)", lineHeight: 1 }}>→</span>}
+              <span style={{
+                fontSize: 12, fontWeight: 500, color: "var(--text2)",
+                background: "var(--surface)", padding: "3px 9px",
+                borderRadius: 6, border: "0.5px solid var(--border)",
+              }}>{step}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSave, storyMode }) {
   if (!story) return null;
 
@@ -44,26 +105,18 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
 
   function copyToClipboard() {
     const lines = isCar && activeCar ? [
-      `STORY: ${story.title}`,
-      "",
-      `CONTEXT:\n${activeCar.context}`,
-      "",
-      `APPROACH (SYSTEM):\n${activeCar.approach1}`,
-      "",
-      `APPROACH (DETAIL):\n${activeCar.approach2}`,
-      "",
+      `STORY: ${story.title}`, "",
+      `CONTEXT:\n${activeCar.context}`, "",
+      `APPROACH (SYSTEM):\n${activeCar.approach1}`, "",
+      `APPROACH (DETAIL):\n${activeCar.approach2}`, "",
       `RESULT:\n${activeCar.result}`,
       activeCar.coachNotes ? `\nCOACH NOTES:\n${activeCar.coachNotes}` : "",
     ] : [
       `STORY: ${story.title}`,
-      story.context ? `Role: ${story.context}` : "",
-      "",
-      `SITUATION:\n${story.situation}`,
-      "",
-      `TASK:\n${story.task}`,
-      "",
-      `ACTION:\n${story.action}`,
-      "",
+      story.context ? `Role: ${story.context}` : "", "",
+      `SITUATION:\n${story.situation}`, "",
+      `TASK:\n${story.task}`, "",
+      `ACTION:\n${story.action}`, "",
       `RESULT:\n${story.result}`,
     ];
     navigator.clipboard.writeText(lines.filter(Boolean).join("\n")).catch(() => {});
@@ -89,7 +142,7 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
         width: "100%", maxWidth: 680, maxHeight: "88vh", overflowY: "auto",
         padding: "2rem", fontFamily: "var(--font)",
       }}>
-        {/* Header — mode badge + close */}
+        {/* Mode badge + close */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
           <span style={{
             fontSize: 10, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase",
@@ -131,27 +184,30 @@ export default function FocusOverlay({ story, onClose, onEdit, carData, onCarSav
         </div>
 
         {/* Star rating */}
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 4 }}>
           <StarRating value={story.rating || 0} size={18} readonly />
         </div>
 
-        {/* Story content — STAR or CA²R */}
+        {/* Mental model */}
+        <MentalModelRow tags={story.mental_model || []} steps={story.mental_model_steps || ""} />
+
+        {/* Story content */}
         {isCar ? (
           activeCar
-            ? <CA2RCardView car={activeCar} condensed={false} />
+            ? <CA2RCardView car={activeCar} condensed={false} storyId={story.id} />
             : (
               <div style={{ marginTop: 12 }}>
                 <p style={{ fontSize: 13, color: "var(--text3)", fontStyle: "italic", marginBottom: 10 }}>
-                  No CA²R version yet. Generate one from the card first, or use the button below.
+                  No CA²R version yet. Generate from the card first, or use the button below.
                 </p>
                 <CA2RGenerateButton story={story} onGenerated={handleCarGenerated} />
               </div>
             )
         ) : (
           [{key:"situation",label:"S",full:"Situation",color:"#185FA5"},
-           {key:"task",     label:"T",full:"Task",      color:"#2E7D4F"},
-           {key:"action",   label:"A",full:"Action",    color:"#C47B10"},
-           {key:"result",   label:"R",full:"Result",    color:"#6B3FA0"},
+           {key:"task",     label:"T",full:"Task",     color:"#2E7D4F"},
+           {key:"action",   label:"A",full:"Action",   color:"#C47B10"},
+           {key:"result",   label:"R",full:"Result",   color:"#6B3FA0"},
           ].map(({ key, label, full, color }) => (
             <div key={key} style={{ borderTop: "0.5px solid var(--section-border)", paddingTop: 14, marginTop: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>

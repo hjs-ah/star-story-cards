@@ -1,17 +1,20 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import StoryCard from "./StoryCard";
 import StoryModal from "./StoryModal";
 import FocusOverlay from "./FocusOverlay";
-import { fetchStories, fetchSchema, createStory, updateStory, patchStory, fetchConfig } from "./notionService";
 import SiteHeader from "./SiteHeader";
-import CareerTimeline from "./CareerTimeline";
 import ChangelogModal from "./ChangelogModal";
+import CareerTimeline from "./CareerTimeline";
+import { listStories, getSchema, createStory, updateStory, patchStory, fetchConfig } from "./notionService";
 
 const STATUS_FILTERS = ["Active", "Draft", "Archived", "All"];
-const COL_OPTIONS = [1, 2, 3];
+const COLS = [1, 2, 3];
 
 function Toast({ msg, onDone }) {
-  useEffect(() => { const t = setTimeout(onDone, 2600); return () => clearTimeout(t); }, [msg]);
+  useEffect(() => {
+    const t = setTimeout(onDone, 2600);
+    return () => clearTimeout(t);
+  }, [msg]);
   return (
     <div style={{
       position: "fixed", bottom: 20, right: 20, zIndex: 400,
@@ -23,38 +26,44 @@ function Toast({ msg, onDone }) {
 }
 
 export default function App() {
-  const [stories, setStories]         = useState([]);
-  const [availableTags, setAvailTags] = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [statusFilter, setStatus]     = useState("Active");
-  const [activeTag, setActiveTag]     = useState(null);   // tag filter
-  const [activeYear, setActiveYear]   = useState(null);   // year filter
-  const [cols, setCols]               = useState(2);
-  const [condensed, setCondensed]     = useState(false);
-  const [dark, setDark]               = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
-  const [editingStory, setEditing]    = useState(null);
-  const [modalOpen, setModalOpen]     = useState(false);
-  const [focusStory, setFocusStory]   = useState(null);
-  const [saving, setSaving]           = useState(false);
-  const [toast, setToast]             = useState("");
-  const [error, setError]             = useState("");
-  // keyword cache — keyed by story id, survives condensed/full toggle
-  const [kwCache, setKwCache]         = useState({});
-  const [carCache, setCarCache]       = useState({});  // CA2R data keyed by story id
-  const [storyMode, setStoryMode]     = useState("STAR"); // "STAR" | "CA2R"
-  const [siteConfig, setSiteConfig]   = useState({});
+  const [stories,     setStories]     = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [statusFilter, setStatusFilter] = useState("Active");
+  const [tagFilter,   setTagFilter]   = useState(null);
+  const [yearFilter,  setYearFilter]  = useState(null);
+  const [filterOutcome, setFilterOutcome] = useState(null);
+  const [filterMM,    setFilterMM]    = useState(null);
+  const [cols,        setCols]        = useState(2);
+  const [condensed,   setCondensed]   = useState(false);
+  const [darkMode,    setDarkMode]    = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [editStory,   setEditStory]   = useState(null);
+  const [showModal,   setShowModal]   = useState(false);
+  const [focusStory,  setFocusStory]  = useState(null);
+  const [saving,      setSaving]      = useState(false);
+  const [toast,       setToast]       = useState("");
+  const [error,       setError]       = useState("");
+  const [kwCache,     setKwCache]     = useState({});
+  const [carCache,    setCarCache]    = useState({});
+  const [storyMode,   setStoryMode]   = useState("STAR");
+  const [siteConfig,  setSiteConfig]  = useState({});
   const [showChangelog, setShowChangelog] = useState(false);
 
-  useEffect(() => { document.body.classList.toggle("dark", dark); }, [dark]);
+  useEffect(() => {
+    document.body.classList.toggle("dark", darkMode);
+  }, [darkMode]);
 
-  const showToast = msg => setToast(msg);
-
-  const loadAll = useCallback(async () => {
-    setLoading(true); setError("");
+  const loadStories = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
-      const [data, schema, cfg] = await Promise.all([fetchStories(), fetchSchema(), fetchConfig().catch(() => ({}))]);
-      setStories(data);
-      setAvailTags(schema.tags || []);
+      const [storiesData, schemaData, cfg] = await Promise.all([
+        listStories(),
+        getSchema(),
+        fetchConfig().catch(() => ({})),
+      ]);
+      setStories(storiesData);
+      setAvailableTags(schemaData.tags || []);
       setSiteConfig(cfg);
     } catch (e) {
       setError(e.message || "Could not load stories.");
@@ -63,44 +72,46 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { loadStories(); }, [loadStories]);
 
-  // Derive unique years from loaded stories for the year filter
-  const allYears = [...new Set(stories.map(s => s.year).filter(Boolean))].sort((a, b) => b - a);
+  // Derived filter options
+  const availableYears   = [...new Set(stories.map(s => s.year).filter(Boolean))].sort((a, b) => b - a);
+  const allTags          = [...new Set([...availableTags, ...stories.flatMap(s => s.tags || [])])];
+  const allOutcomes      = [...new Set(stories.flatMap(s => s.outcomes || []))];
+  const allMentalModels  = [...new Set(stories.flatMap(s => s.mental_model || []))];
 
-  // Derive all tags in use (schema + any on stories not yet in schema)
-  const allTagsInUse = [...new Set([...availableTags, ...stories.flatMap(s => s.tags || [])])];
-
-  const filtered = stories.filter(s => {
-    const matchStatus = statusFilter === "All" ? true : (s.status || "Active") === statusFilter;
-    const matchTag    = activeTag  ? (s.tags || []).includes(activeTag) : true;
-    const matchYear   = activeYear ? s.year === activeYear : true;
-    return matchStatus && matchTag && matchYear;
+  // Filtered stories
+  const filteredStories = stories.filter(story => {
+    const matchStatus  = statusFilter === "All" ? true : (story.status || "Active") === statusFilter;
+    const matchTag     = tagFilter    ? (story.tags || []).includes(tagFilter) : true;
+    const matchYear    = yearFilter   ? story.year === yearFilter : true;
+    const matchOutcome = filterOutcome ? (story.outcomes || []).includes(filterOutcome) : true;
+    const matchMM      = filterMM     ? (story.mental_model || []).includes(filterMM) : true;
+    return matchStatus && matchTag && matchYear && matchOutcome && matchMM;
   });
 
-  function openNew()       { setEditing(null); setModalOpen(true); }
-  function openEdit(story) { setEditing(story); setModalOpen(true); }
-  function closeModal()    { setModalOpen(false); setEditing(null); }
+  function openNew() { setEditStory(null); setShowModal(true); }
+  function openEdit(story) { setEditStory(story); setShowModal(true); }
+  function closeModal() { setShowModal(false); setEditStory(null); }
 
-  async function handleSave(form) {
+  async function handleSave(formData) {
     setSaving(true);
     try {
-      if (editingStory) {
-        await updateStory(editingStory.id, form);
-        setStories(prev => prev.map(s => s.id === editingStory.id ? { ...s, ...form } : s));
-        // refresh tags in case a new one was added
-        fetchSchema().then(s => setAvailTags(s.tags || [])).catch(() => {});
-        showToast("Story updated in Notion.");
+      if (editStory) {
+        await updateStory(editStory.id, formData);
+        setStories(prev => prev.map(s => s.id === editStory.id ? { ...s, ...formData } : s));
+        getSchema().then(d => setAvailableTags(d.tags || [])).catch(() => {});
+        setToast("Story updated in Notion.");
       } else {
-        const created = await createStory(form);
-        const newStory = created?.id ? { ...form, id: created.id } : { id: "local-" + Date.now(), ...form };
+        const res = await createStory(formData);
+        const newStory = res?.id ? { ...formData, id: res.id } : { id: "local-" + Date.now(), ...formData };
         setStories(prev => [newStory, ...prev]);
-        fetchSchema().then(s => setAvailTags(s.tags || [])).catch(() => {});
-        showToast("Story saved to Notion.");
+        getSchema().then(d => setAvailableTags(d.tags || [])).catch(() => {});
+        setToast("Story saved to Notion.");
       }
       closeModal();
-    } catch (e) {
-      showToast("Error saving. Please try again.");
+    } catch {
+      setToast("Error saving. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -108,13 +119,13 @@ export default function App() {
 
   async function handleArchive(id) {
     setStories(prev => prev.map(s => s.id === id ? { ...s, status: "Archived" } : s));
-    showToast("Story archived.");
+    setToast("Story archived.");
     await patchStory(id, { status: "Archived" }).catch(console.error);
   }
 
   async function handleRestore(id) {
     setStories(prev => prev.map(s => s.id === id ? { ...s, status: "Active" } : s));
-    showToast("Story restored to Active.");
+    setToast("Story restored to Active.");
     await patchStory(id, { status: "Active" }).catch(console.error);
   }
 
@@ -122,7 +133,8 @@ export default function App() {
     setStories(prev => prev.map(s => s.id === id ? { ...s, rating } : s));
   }
 
-  const pill = (label, active, onClick, count) => (
+  // Filter pill helper
+  const filterBtn = (label, active, onClick, count) => (
     <button key={label} onClick={onClick} style={{
       fontSize: 12, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
       border: active ? "0.5px solid var(--accent)" : "0.5px solid var(--border)",
@@ -131,30 +143,47 @@ export default function App() {
       fontFamily: "var(--font)", fontWeight: active ? 500 : 400,
       transition: "all 0.12s", whiteSpace: "nowrap",
     }}>
-      {label}{count !== undefined && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>{count}</span>}
+      {label}
+      {count !== undefined && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>{count}</span>}
     </button>
   );
+
+  const hasFilters = tagFilter || yearFilter || filterOutcome || filterMM || statusFilter !== "All";
+
+  const filterSummaryParts = [];
+  if (statusFilter !== "All") filterSummaryParts.push(statusFilter.toLowerCase());
+  if (tagFilter)     filterSummaryParts.push(`tagged "${tagFilter}"`);
+  if (yearFilter)    filterSummaryParts.push(`from ${yearFilter}`);
+  if (filterOutcome) filterSummaryParts.push(`outcome: ${filterOutcome}`);
+  if (filterMM)      filterSummaryParts.push(`model: ${filterMM}`);
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", transition: "background 0.2s" }}>
       <SiteHeader cfg={siteConfig} />
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+
+      {/* App header */}
       <header style={{
         background: "var(--header-bg)", borderBottom: "0.5px solid var(--border)",
-        padding: "0 1.5rem", height: 56, display: "flex", alignItems: "center",
-        justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100,
+        padding: "0 1.5rem", height: 56,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        position: "sticky", top: 0, zIndex: 100,
       }}>
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 17, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>Impact Narratives</span>
-            <span style={{ fontSize: 10, color: "var(--text3)", background: "var(--surface2)", padding: "2px 7px", borderRadius: 5, fontFamily: "var(--font-mono)" }}>STAR</span>
+            <span style={{ fontSize: 17, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>
+              Impact Narratives
+            </span>
+            <span style={{ fontSize: 10, color: "var(--text3)", background: "var(--surface2)", padding: "2px 7px", borderRadius: 5, fontFamily: "var(--font-mono)" }}>
+              STAR
+            </span>
           </div>
           <span style={{ fontSize: 10, color: "var(--text3)", letterSpacing: "0.01em" }}>For use by owner</span>
         </div>
+
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {/* Column switcher */}
           <div style={{ display: "flex", gap: 3, background: "var(--surface2)", borderRadius: 8, padding: 3 }}>
-            {COL_OPTIONS.map(n => (
+            {COLS.map(n => (
               <button key={n} onClick={() => setCols(n)} title={`${n} col${n > 1 ? "s" : ""}`} style={{
                 width: 28, height: 26, borderRadius: 6, border: "none", cursor: "pointer",
                 background: cols === n ? "var(--surface)" : "transparent",
@@ -165,22 +194,18 @@ export default function App() {
               }}>{n}</button>
             ))}
           </div>
-          {/* Changelog button */}
-          <button
-            onClick={() => setShowChangelog(true)}
-            title="What's New"
-            style={{
-              fontSize: 11, padding: "0 10px", height: 32, borderRadius: 8,
-              border: "0.5px solid var(--border2)", background: "transparent",
-              color: "var(--text3)", cursor: "pointer", fontFamily: "var(--font)",
-              flexShrink: 0, whiteSpace: "nowrap",
-            }}
-          >
-            What's New
-          </button>
-          {/* STAR / CA²R global toggle */}
+
+          {/* What's New */}
+          <button onClick={() => setShowChangelog(true)} title="What's New" style={{
+            fontSize: 11, padding: "0 10px", height: 32, borderRadius: 8,
+            border: "0.5px solid var(--border2)", background: "transparent",
+            color: "var(--text3)", cursor: "pointer", fontFamily: "var(--font)",
+            flexShrink: 0, whiteSpace: "nowrap",
+          }}>What's New</button>
+
+          {/* STAR / CA²R toggle */}
           <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 3, flexShrink: 0 }}>
-            {[["STAR","STAR"], ["CA²R","CA2R"]].map(([label,val]) => (
+            {[["STAR","STAR"],["CA²R","CA2R"]].map(([label,val]) => (
               <button key={val} onClick={() => setStoryMode(val)} style={{
                 padding: "0 10px", height: 26, borderRadius: 6, border: "none", cursor: "pointer",
                 background: storyMode === val ? "var(--surface)" : "transparent",
@@ -191,27 +216,26 @@ export default function App() {
               }}>{label}</button>
             ))}
           </div>
-          {/* Condensed toggle — fixed width so column buttons don't shift */}
-          <button
-            onClick={() => setCondensed(c => !c)}
-            title={condensed ? "Full view" : "Condensed view"}
-            style={{
-              width: 82, height: 32, borderRadius: 8, border: "0.5px solid var(--border)",
-              background: condensed ? "var(--surface2)" : "transparent",
-              color: condensed ? "var(--text)" : "var(--text3)",
-              cursor: "pointer", fontSize: 11, fontFamily: "var(--font)", fontWeight: condensed ? 500 : 400,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 5, transition: "background 0.12s, color 0.12s",
-              flexShrink: 0,
-            }}
-          >
-            {condensed ? "Full view" : "Condense"}
-          </button>
-          {/* Dark/light */}
-          <button onClick={() => setDark(d => !d)} title={dark ? "Light mode" : "Dark mode"} style={{
+
+          {/* Condense toggle */}
+          <button onClick={() => setCondensed(v => !v)} title={condensed ? "Full view" : "Condensed view"} style={{
+            width: 82, height: 32, borderRadius: 8,
+            border: "0.5px solid var(--border)",
+            background: condensed ? "var(--surface2)" : "transparent",
+            color: condensed ? "var(--text)" : "var(--text3)",
+            cursor: "pointer", fontSize: 11, fontFamily: "var(--font)",
+            fontWeight: condensed ? 500 : 400,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+            transition: "background 0.12s, color 0.12s", flexShrink: 0,
+          }}>{condensed ? "Full view" : "Condense"}</button>
+
+          {/* Dark mode */}
+          <button onClick={() => setDarkMode(v => !v)} title={darkMode ? "Light mode" : "Dark mode"} style={{
             width: 34, height: 34, borderRadius: 8, border: "0.5px solid var(--border)",
             background: "transparent", cursor: "pointer", fontSize: 16, color: "var(--text2)",
             display: "flex", alignItems: "center", justifyContent: "center",
-          }}>{dark ? "☀" : "☾"}</button>
+          }}>{darkMode ? "☀" : "☾"}</button>
+
           {/* New story */}
           <button onClick={openNew} style={{
             fontSize: 12, padding: "6px 16px", borderRadius: 8, cursor: "pointer",
@@ -223,122 +247,155 @@ export default function App() {
 
       <main style={{ maxWidth: cols === 3 ? 1200 : 960, margin: "0 auto", padding: "1.25rem 1.5rem 3rem" }}>
 
-        {/* ── Filter row 1: Status ──────────────────────────────────────────── */}
+        {/* Status filter row */}
         <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-          {STATUS_FILTERS.map(f =>
-            pill(f, statusFilter === f, () => setStatus(f),
-              f !== "All" ? stories.filter(s => (s.status || "Active") === f).length : undefined)
-          )}
+          {STATUS_FILTERS.map(s => filterBtn(
+            s, statusFilter === s, () => setStatusFilter(s),
+            s === "All" ? undefined : stories.filter(story => (story.status || "Active") === s).length
+          ))}
           {!loading && (
-            <button onClick={loadAll} title="Refresh" style={{
+            <button onClick={loadStories} title="Refresh" style={{
               marginLeft: "auto", fontSize: 12, padding: "5px 10px", borderRadius: 20, cursor: "pointer",
-              border: "0.5px solid var(--border)", background: "transparent", color: "var(--text3)", fontFamily: "var(--font)",
+              border: "0.5px solid var(--border)", background: "transparent",
+              color: "var(--text3)", fontFamily: "var(--font)",
             }}>↻</button>
           )}
         </div>
 
-        {/* ── Filter row 2: Tags ────────────────────────────────────────────── */}
-        {allTagsInUse.length > 0 && (
+        {/* Tags filter row */}
+        {allTags.length > 0 && (
           <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--text3)", marginRight: 2, fontWeight: 500 }}>Tags</span>
-            {allTagsInUse.map(tag =>
-              pill(tag, activeTag === tag, () => setActiveTag(activeTag === tag ? null : tag))
-            )}
-
+            {allTags.map(tag => filterBtn(tag, tagFilter === tag, () => setTagFilter(tagFilter === tag ? null : tag)))}
           </div>
         )}
 
-        {/* ── Filter row 3: Years ───────────────────────────────────────────── */}
-        {allYears.length > 0 && (
+        {/* Outcomes filter row */}
+        {allOutcomes.length > 0 && (
+          <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--text3)", marginRight: 2, fontWeight: 500 }}>Outcomes</span>
+            {allOutcomes.map(o => filterBtn(o, filterOutcome === o, () => setFilterOutcome(filterOutcome === o ? null : o)))}
+          </div>
+        )}
+
+        {/* Mental Model filter row */}
+        {allMentalModels.length > 0 && (
+          <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--text3)", marginRight: 2, fontWeight: 500 }}>Model</span>
+            {allMentalModels.map(m => filterBtn(m, filterMM === m, () => setFilterMM(filterMM === m ? null : m)))}
+          </div>
+        )}
+
+        {/* Year filter row */}
+        {availableYears.length > 0 && (
           <div style={{ display: "flex", gap: 4, marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--text3)", marginRight: 2, fontWeight: 500 }}>Year</span>
-            {allYears.map(y =>
-              pill(String(y), activeYear === y, () => setActiveYear(activeYear === y ? null : y))
-            )}
-
+            {availableYears.map(y => filterBtn(String(y), yearFilter === y, () => setYearFilter(yearFilter === y ? null : y)))}
           </div>
         )}
 
-        {/* ── Career timeline ─────────────────────────────────────────────── */}
-        <CareerTimeline
-          stories={stories}
-          activeYear={activeYear}
-          onYearSelect={(year) => setActiveYear(activeYear === year ? null : year)}
-        />
+        {/* Timeline */}
+        <CareerTimeline stories={stories} activeYear={yearFilter} onYearSelect={y => setYearFilter(yearFilter === y ? null : y)} />
 
-        {/* ── Filter status bar — always visible ─────────────────────────────── */}
+        {/* Filter status bar */}
         {!loading && (
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            marginBottom: "1rem", minHeight: 22,
-          }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", minHeight: 22 }}>
             <span style={{ fontSize: 11, color: "var(--text2)" }}>
-              {(() => {
-                const hasFilters = activeTag || activeYear || statusFilter !== "All";
-                if (!hasFilters) return <span style={{ color: "var(--text3)" }}>No filters selected</span>;
-                const parts = [];
-                if (statusFilter !== "All") parts.push(statusFilter.toLowerCase());
-                if (activeTag) parts.push(`tagged "${activeTag}"`);
-                if (activeYear) parts.push(`from ${activeYear}`);
-                const desc = parts.join(", ");
-                return <>Showing <strong style={{ fontWeight: 500, color: "var(--text)" }}>{filtered.length}</strong> stor{filtered.length === 1 ? "y" : "ies"}{desc ? ` — ${desc}` : ""}</>;
-              })()}
+              {!hasFilters
+                ? <span style={{ color: "var(--text3)" }}>No filters selected</span>
+                : <>
+                    Showing <strong style={{ fontWeight: 500, color: "var(--text)" }}>{filteredStories.length}</strong>
+                    {" "}stor{filteredStories.length === 1 ? "y" : "ies"}
+                    {filterSummaryParts.length ? ` — ${filterSummaryParts.join(", ")}` : ""}
+                  </>
+              }
             </span>
-            {(activeTag || activeYear) && (
-              <button
-                onClick={() => { setActiveTag(null); setActiveYear(null); }}
-                style={{ fontSize: 11, background: "none", border: "none", color: "var(--tan-title)", cursor: "pointer", textDecoration: "underline", fontFamily: "var(--font)", padding: 0 }}
-              >
-                clear filters
+            {(tagFilter || yearFilter || filterOutcome || filterMM) && (
+              <button onClick={() => { setTagFilter(null); setYearFilter(null); setFilterOutcome(null); setFilterMM(null); }} style={{
+                fontSize: 11, background: "none", border: "none", color: "var(--tan-title)",
+                cursor: "pointer", textDecoration: "underline", fontFamily: "var(--font)", padding: 0,
+              }}>clear filters</button>
+            )}
+          </div>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div style={{ textAlign: "center", padding: "4rem 0", color: "var(--text3)", fontSize: 13 }}>
+            Loading stories from Notion...
+          </div>
+        )}
+
+        {/* Error */}
+        {!loading && error && (
+          <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#B84A2E", background: "#FFF0EC", borderRadius: 12, fontSize: 13 }}>
+            {error}
+            <button onClick={loadStories} style={{ display: "block", margin: "10px auto 0", fontSize: 12, cursor: "pointer", color: "#B84A2E", background: "none", border: "none", textDecoration: "underline" }}>Try again</button>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !error && filteredStories.length === 0 && (
+          <div style={{ textAlign: "center", padding: "4rem 1rem", color: "var(--text3)" }}>
+            <p style={{ fontSize: 14, marginBottom: 8 }}>No stories match the current filters.</p>
+            {statusFilter !== "Archived" && !tagFilter && !yearFilter && (
+              <button onClick={openNew} style={{ fontSize: 12, cursor: "pointer", color: "var(--accent)", background: "none", border: "none", textDecoration: "underline" }}>
+                Add your first story
               </button>
             )}
           </div>
         )}
 
-        {/* ── Content ───────────────────────────────────────────────────────── */}
-        {loading && <div style={{ textAlign: "center", padding: "4rem 0", color: "var(--text3)", fontSize: 13 }}>Loading stories from Notion...</div>}
-
-        {!loading && error && (
-          <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#B84A2E", background: "#FFF0EC", borderRadius: 12, fontSize: 13 }}>
-            {error}
-            <button onClick={loadAll} style={{ display: "block", margin: "10px auto 0", fontSize: 12, cursor: "pointer", color: "#B84A2E", background: "none", border: "none", textDecoration: "underline" }}>Try again</button>
-          </div>
-        )}
-
-        {!loading && !error && filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "4rem 1rem", color: "var(--text3)" }}>
-            <p style={{ fontSize: 14, marginBottom: 8 }}>No stories match the current filters.</p>
-            {statusFilter !== "Archived" && !activeTag && !activeYear && (
-              <button onClick={openNew} style={{ fontSize: 12, cursor: "pointer", color: "var(--accent)", background: "none", border: "none", textDecoration: "underline" }}>Add your first story</button>
-            )}
-          </div>
-        )}
-
-        {!loading && !error && filtered.length > 0 && (
+        {/* Story grid */}
+        {!loading && !error && filteredStories.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 16 }}>
-            {filtered.map(story => (
-              <StoryCard key={story.id} story={story}
-                onEdit={openEdit} onArchive={handleArchive}
-                onRestore={handleRestore} onRatingChange={handleRatingChange}
-                onFocus={setFocusStory} condensed={condensed} storyMode={storyMode}
+            {filteredStories.map(story => (
+              <StoryCard
+                key={story.id}
+                story={story}
+                onEdit={openEdit}
+                onArchive={handleArchive}
+                onRestore={handleRestore}
+                onRatingChange={handleRatingChange}
+                onFocus={setFocusStory}
+                condensed={condensed}
+                storyMode={storyMode}
                 kwData={kwCache[story.id] || null}
-                onKwSave={(data) => setKwCache(c => ({ ...c, [story.id]: data }))}
-                onKwReset={(id) => setKwCache(c => { const n = { ...c }; delete n[id]; return n; })}
+                onKwSave={kw => setKwCache(prev => ({ ...prev, [story.id]: kw }))}
+                onKwReset={id => setKwCache(prev => { const n = { ...prev }; delete n[id]; return n; })}
                 carData={carCache[story.id] || null}
-                onCarSave={(data) => setCarCache(c => ({ ...c, [story.id]: data }))}
-                onCarReset={(id) => setCarCache(c => { const n = { ...c }; delete n[id]; return n; })}
+                onCarSave={car => setCarCache(prev => ({ ...prev, [story.id]: car }))}
+                onCarReset={id => setCarCache(prev => { const n = { ...prev }; delete n[id]; return n; })}
               />
             ))}
           </div>
         )}
       </main>
 
-      {modalOpen && (
-        <StoryModal story={editingStory} onSave={handleSave} onClose={closeModal}
-          saving={saving} availableTags={allTagsInUse} />
+      {/* Modals */}
+      {showModal && (
+        <StoryModal
+          story={editStory}
+          onSave={handleSave}
+          onClose={closeModal}
+          saving={saving}
+          availableTags={allTags}
+        />
       )}
-      {focusStory && <FocusOverlay story={focusStory} onClose={() => setFocusStory(null)} onEdit={openEdit} storyMode={storyMode} carData={carCache[focusStory?.id] || null} onCarSave={(data) => setCarCache(c => ({ ...c, [focusStory.id]: data }))} />}
+
+      {focusStory && (
+        <FocusOverlay
+          story={focusStory}
+          onClose={() => setFocusStory(null)}
+          onEdit={openEdit}
+          storyMode={storyMode}
+          carData={carCache[focusStory?.id] || null}
+          onCarSave={car => setCarCache(prev => ({ ...prev, [focusStory.id]: car }))}
+        />
+      )}
+
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
+
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
     </div>
   );
