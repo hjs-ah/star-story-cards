@@ -20,9 +20,13 @@ const STATUS_STYLES = {
   Archived: { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" },
 };
 
-const TAN_BORDER = "var(--tan-border)";
-const TAN_GLOW   = "var(--tan-glow)";
-const TAN_TITLE  = "var(--tan-title)";
+const MM_COLORS = {
+  "Learn-Analyze-Unblock":    { bg: "#EBF2FB", text: "#185FA5", border: "#93BBE8" },
+  "Diagnose-Convene-Activate":{ bg: "#F3EEF9", text: "#6B3FA0", border: "#C9AEE8" },
+  "Listen-Validate-Design":   { bg: "#E8F5ED", text: "#2E7D4F", border: "#A3D4B4" },
+  "Assess-Align-Execute":     { bg: "#FDF3DC", text: "#C47B10", border: "#F0D08A" },
+  "Build-Measure-Learn":      { bg: "#FDE8F0", text: "#A0346A", border: "#E8A8C8" },
+};
 
 function truncate(text, maxChars) {
   if (!text) return "";
@@ -33,40 +37,65 @@ function StarLabel({ letter }) {
   return (
     <span style={{
       fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
-      fontFamily: "var(--font-mono)",
-      background: "var(--text)", color: "var(--bg)",
+      fontFamily: "var(--font-mono)", background: "var(--text)", color: "var(--bg)",
     }}>{letter}</span>
   );
 }
 
-// Mental model chevron row
-function MentalModelRow({ steps }) {
-  if (!steps || !steps.trim()) return null;
-  const parts = steps.split(/[→\-–>]+/).map(s => s.trim()).filter(Boolean);
-  if (parts.length === 0) return null;
+// Mental model section: tags + chevron steps if present
+function MentalModelRow({ tags = [], steps }) {
+  const hasSteps = steps && steps.trim();
+  const hasTags = tags && tags.length > 0;
+  if (!hasTags && !hasSteps) return null;
+
+  const parts = hasSteps
+    ? steps.split(/[→\-–>]+/).map(s => s.trim()).filter(Boolean)
+    : [];
+
   return (
     <div style={{
-      display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
-      marginTop: 8, padding: "6px 10px",
+      marginTop: 8, padding: "7px 10px",
       background: "var(--surface2)", borderRadius: 8,
       border: "0.5px solid var(--border2)",
     }}>
       <span style={{
         fontSize: 9, fontWeight: 700, color: "var(--text3)",
-        textTransform: "uppercase", letterSpacing: "0.08em", marginRight: 2, flexShrink: 0,
-      }}>Model</span>
-      {parts.map((step, i) => (
-        <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {i > 0 && (
-            <span style={{ fontSize: 11, color: "var(--text3)", fontWeight: 400 }}>›</span>
-          )}
-          <span style={{
-            fontSize: 11, fontWeight: 500, color: "var(--text2)",
-            background: "var(--surface)", padding: "2px 7px",
-            borderRadius: 6, border: "0.5px solid var(--border)",
-          }}>{step}</span>
-        </span>
-      ))}
+        textTransform: "uppercase", letterSpacing: "0.08em",
+        display: "block", marginBottom: hasTags || hasSteps ? 5 : 0,
+      }}>Mental Model</span>
+
+      {/* Tags row */}
+      {hasTags && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: hasSteps ? 6 : 0 }}>
+          {tags.map(tag => {
+            const c = MM_COLORS[tag] || { bg: "#F1F0EE", text: "#6B6860", border: "#D0CEC5" };
+            return (
+              <span key={tag} style={{
+                fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 500,
+                background: c.bg, color: c.text, border: `0.5px solid ${c.border}`,
+              }}>{tag}</span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Chevron steps */}
+      {parts.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+          {parts.map((step, i) => (
+            <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {i > 0 && (
+                <span style={{ fontSize: 11, color: "var(--text3)" }}>›</span>
+              )}
+              <span style={{
+                fontSize: 11, fontWeight: 500, color: "var(--text2)",
+                background: "var(--surface)", padding: "2px 7px",
+                borderRadius: 6, border: "0.5px solid var(--border)",
+              }}>{step}</span>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -90,6 +119,13 @@ export default function StoryCard({
   } : null;
   const activeCar = carData || carFromNotion;
 
+  // Load saved keywords from story if no session data
+  const resolvedKw = kwData || (
+    (story.kw_power_words?.length || story.kw_metrics?.length || story.kw_phrases?.length)
+      ? { powerWords: story.kw_power_words || [], metrics: story.kw_metrics || [], phrases: story.kw_phrases || [] }
+      : null
+  );
+
   function handleRating(n) {
     onRatingChange(story.id, n);
     patchStory(story.id, { "Star Rating": n }).catch(console.error);
@@ -98,6 +134,16 @@ export default function StoryCard({
   function handleCarGenerated(car) {
     onCarSave(car);
     saveCA2R(story.id, car).catch(console.error);
+  }
+
+  function handleKwSave(kw) {
+    onKwSave(kw);
+    // Persist to Notion
+    patchStory(story.id, {
+      "KW Power Words": (kw.powerWords || []).join(", "),
+      "KW Metrics":     (kw.metrics || []).join(", "),
+      "KW Phrases":     (kw.phrases || []).join(", "),
+    }).catch(console.error);
   }
 
   function copyToClipboard() {
@@ -123,7 +169,7 @@ export default function StoryCard({
     <div style={{ marginBottom: condensed ? 6 : 8 }}>
       {/* Title + status */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: TAN_TITLE, lineHeight: 1.4, flex: 1 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--tan-title)", lineHeight: 1.4, flex: 1 }}>
           {story.title || "Untitled"}
         </h3>
         <span style={{
@@ -142,7 +188,9 @@ export default function StoryCard({
           }}>{story.year}</span>
         )}
         {story.context && (
-          <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
+          <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>
+            {story.context}
+          </p>
         )}
       </div>
 
@@ -151,12 +199,25 @@ export default function StoryCard({
         <StarRating value={story.rating || 0} onChange={handleRating} size={14} />
       </div>
 
-      {/* Mental model chevron */}
-      <MentalModelRow steps={story.mental_model_steps} />
+      {/* Mental model — tags + chevron steps */}
+      <MentalModelRow
+        tags={story.mental_model || []}
+        steps={story.mental_model_steps || ""}
+      />
 
-      {/* Action stack: Suggest Keywords → Generate CA²R (full width, stacked) */}
-      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid var(--section-border)", display: "flex", flexDirection: "column", gap: 6 }}>
-        <KeywordSuggestions story={story} kwData={kwData} onSave={onKwSave} onReset={onKwReset} condensed={condensed} />
+      {/* Action stack: full-width stacked */}
+      <div style={{
+        marginTop: 10, paddingTop: 10,
+        borderTop: "0.5px solid var(--section-border)",
+        display: "flex", flexDirection: "column", gap: 6,
+      }}>
+        <KeywordSuggestions
+          story={story}
+          kwData={resolvedKw}
+          onSave={handleKwSave}
+          onReset={onKwReset}
+          condensed={condensed}
+        />
         <div>
           {activeCar ? (
             <button onClick={() => onCarReset(story.id)} style={{
@@ -174,7 +235,8 @@ export default function StoryCard({
 
   const actionRow = (
     <div style={{
-      display: "flex", gap: 6, marginTop: condensed ? 10 : 12, paddingTop: condensed ? 8 : 10,
+      display: "flex", gap: 6,
+      marginTop: condensed ? 10 : 12, paddingTop: condensed ? 8 : 10,
       borderTop: "0.5px solid var(--section-border)",
     }}>
       <button onClick={() => onFocus(story)} style={btnStyle("focus")}>Focus</button>
@@ -223,12 +285,12 @@ export default function StoryCard({
   return (
     <div style={{
       background: "var(--card-bg)",
-      border: `1.5px solid ${TAN_BORDER}`,
+      border: "1.5px solid var(--tan-border)",
       borderRadius: 16,
       padding: condensed ? "1rem" : "1.25rem",
       display: "flex", flexDirection: "column",
       fontFamily: "var(--font)",
-      boxShadow: `0 0 0 3px ${TAN_GLOW}`,
+      boxShadow: "0 0 0 3px var(--tan-glow)",
     }}>
       {cardHeader}
 
@@ -262,7 +324,7 @@ export default function StoryCard({
             activeCar
               ? <CA2RCardView car={activeCar} condensed={false} />
               : <div style={{ fontSize: 12, color: "var(--text3)", fontStyle: "italic", marginTop: 8 }}>
-                  Click "Generate CA²R" above to create your CA²R version of this story.
+                  Click "Generate CA²R" above to create your CA²R version.
                 </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column" }}>

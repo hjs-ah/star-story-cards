@@ -12,6 +12,12 @@ function textOf(prop) {
   return prop?.rich_text?.map(t => t.plain_text).join("") || "";
 }
 
+// Parse comma-separated string stored in rich_text back to array
+function csvToArr(prop) {
+  const s = textOf(prop);
+  return s ? s.split(",").map(x => x.trim()).filter(Boolean) : [];
+}
+
 function pageToStory(page) {
   const p = page.properties;
   return {
@@ -29,6 +35,9 @@ function pageToStory(page) {
     outcomes: (p["Outcomes"]?.multi_select || []).map(t => t.name),
     mental_model:       (p["Mental Model"]?.multi_select || []).map(t => t.name),
     mental_model_steps: textOf(p["Mental Model Steps"]),
+    kw_power_words: csvToArr(p["KW Power Words"]),
+    kw_metrics:     csvToArr(p["KW Metrics"]),
+    kw_phrases:     csvToArr(p["KW Phrases"]),
     car2r_context:   textOf(p["CA2R Context"]),
     car2r_approach1: textOf(p["CA2R Approach1"]),
     car2r_approach2: textOf(p["CA2R Approach2"]),
@@ -59,6 +68,10 @@ function buildProperties(story, partial = false) {
   if (!partial || has("outcomes")) props["Outcomes"]     = { multi_select: (story.outcomes || []).map(n => ({ name: n })) };
   if (!partial || has("mental_model"))       props["Mental Model"]       = { multi_select: (story.mental_model || []).map(n => ({ name: n })) };
   if (!partial || has("mental_model_steps")) props["Mental Model Steps"] = rt(story.mental_model_steps);
+  // KW fields stored as comma-separated strings
+  if (!partial || has("KW Power Words")) props["KW Power Words"] = rt(story["KW Power Words"] || "");
+  if (!partial || has("KW Metrics"))     props["KW Metrics"]     = rt(story["KW Metrics"] || "");
+  if (!partial || has("KW Phrases"))     props["KW Phrases"]     = rt(story["KW Phrases"] || "");
   if (!partial || has("car2r_context"))   props["CA2R Context"]    = rt(story.car2r_context);
   if (!partial || has("car2r_approach1")) props["CA2R Approach1"]  = rt(story.car2r_approach1);
   if (!partial || has("car2r_approach2")) props["CA2R Approach2"]  = rt(story.car2r_approach2);
@@ -97,8 +110,7 @@ export default async function handler(req) {
         page_size: 100,
         sorts: [{ property: "Last Edited", direction: "descending" }],
       }, token);
-      const stories = (data.results || []).map(pageToStory);
-      return ok(stories);
+      return ok((data.results || []).map(pageToStory));
     }
 
     if (action === "schema") {
