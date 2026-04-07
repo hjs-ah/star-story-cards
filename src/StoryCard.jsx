@@ -39,6 +39,38 @@ function StarLabel({ letter }) {
   );
 }
 
+// Mental model chevron row
+function MentalModelRow({ steps }) {
+  if (!steps || !steps.trim()) return null;
+  const parts = steps.split(/[→\-–>]+/).map(s => s.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
+      marginTop: 8, padding: "6px 10px",
+      background: "var(--surface2)", borderRadius: 8,
+      border: "0.5px solid var(--border2)",
+    }}>
+      <span style={{
+        fontSize: 9, fontWeight: 700, color: "var(--text3)",
+        textTransform: "uppercase", letterSpacing: "0.08em", marginRight: 2, flexShrink: 0,
+      }}>Model</span>
+      {parts.map((step, i) => (
+        <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {i > 0 && (
+            <span style={{ fontSize: 11, color: "var(--text3)", fontWeight: 400 }}>›</span>
+          )}
+          <span style={{
+            fontSize: 11, fontWeight: 500, color: "var(--text2)",
+            background: "var(--surface)", padding: "2px 7px",
+            borderRadius: 6, border: "0.5px solid var(--border)",
+          }}>{step}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function StoryCard({
   story, onEdit, onArchive, onRestore, onRatingChange, onFocus,
   condensed, storyMode,
@@ -49,7 +81,6 @@ export default function StoryCard({
   const ss = STATUS_STYLES[status] || STATUS_STYLES.Active;
   const isCar = storyMode === "CA2R";
 
-  // Build car object from story fields (Notion-stored) or override from carData cache
   const carFromNotion = story.car2r_generated ? {
     context:    story.car2r_context,
     approach1:  story.car2r_approach1,
@@ -66,32 +97,23 @@ export default function StoryCard({
 
   function handleCarGenerated(car) {
     onCarSave(car);
-    // Persist to Notion in background
     saveCA2R(story.id, car).catch(console.error);
   }
 
   function copyToClipboard() {
     const lines = isCar && activeCar ? [
-      `STORY: ${story.title}`,
-      "",
-      `CONTEXT:\n${activeCar.context}`,
-      "",
-      `APPROACH (SYSTEM):\n${activeCar.approach1}`,
-      "",
-      `APPROACH (DETAIL):\n${activeCar.approach2}`,
-      "",
+      `STORY: ${story.title}`, "",
+      `CONTEXT:\n${activeCar.context}`, "",
+      `APPROACH (SYSTEM):\n${activeCar.approach1}`, "",
+      `APPROACH (DETAIL):\n${activeCar.approach2}`, "",
       `RESULT:\n${activeCar.result}`,
       activeCar.coachNotes ? `\nCOACH NOTES:\n${activeCar.coachNotes}` : "",
     ] : [
       `STORY: ${story.title}`,
-      story.context ? `Role: ${story.context}` : "",
-      "",
-      `SITUATION:\n${story.situation}`,
-      "",
-      `TASK:\n${story.task}`,
-      "",
-      `ACTION:\n${story.action}`,
-      "",
+      story.context ? `Role: ${story.context}` : "", "",
+      `SITUATION:\n${story.situation}`, "",
+      `TASK:\n${story.task}`, "",
+      `ACTION:\n${story.action}`, "",
       `RESULT:\n${story.result}`,
     ];
     navigator.clipboard.writeText(lines.filter(l => l !== undefined).join("\n")).catch(() => {});
@@ -99,6 +121,7 @@ export default function StoryCard({
 
   const cardHeader = (
     <div style={{ marginBottom: condensed ? 6 : 8 }}>
+      {/* Title + status */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, color: TAN_TITLE, lineHeight: 1.4, flex: 1 }}>
           {story.title || "Untitled"}
@@ -108,6 +131,8 @@ export default function StoryCard({
           background: ss.bg, color: ss.text, border: `0.5px solid ${ss.border}`,
         }}>{status}</span>
       </div>
+
+      {/* Year + role */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
         {story.year && (
           <span style={{
@@ -120,11 +145,17 @@ export default function StoryCard({
           <p style={{ fontSize: 11, color: "var(--text3)", fontStyle: "italic", margin: 0 }}>{story.context}</p>
         )}
       </div>
+
+      {/* Star rating */}
       <div style={{ marginTop: 8 }}>
         <StarRating value={story.rating || 0} onChange={handleRating} size={14} />
       </div>
-      {/* Keywords + CA2R buttons — split two-column */}
-      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid var(--section-border)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+
+      {/* Mental model chevron */}
+      <MentalModelRow steps={story.mental_model_steps} />
+
+      {/* Action stack: Suggest Keywords → Generate CA²R (full width, stacked) */}
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid var(--section-border)", display: "flex", flexDirection: "column", gap: 6 }}>
         <KeywordSuggestions story={story} kwData={kwData} onSave={onKwSave} onReset={onKwReset} condensed={condensed} />
         <div>
           {activeCar ? (
@@ -159,10 +190,10 @@ export default function StoryCard({
   const tagsRow = (
     <>
       {story.tags?.length > 0 && (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
           <span style={{
-            fontSize: 9, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase",
-            letterSpacing: "0.07em", paddingTop: 3, flexShrink: 0, whiteSpace: "nowrap",
+            fontSize: 9, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase",
+            letterSpacing: "0.07em", paddingTop: 3, flexShrink: 0,
           }}>Impact</span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {story.tags.map(tag => {
@@ -180,8 +211,8 @@ export default function StoryCard({
       {(story.outcomes || []).length > 0 && (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
           <span style={{
-            fontSize: 9, fontWeight: 600, color: "var(--text3)", textTransform: "uppercase",
-            letterSpacing: "0.07em", paddingTop: 3, flexShrink: 0, whiteSpace: "nowrap",
+            fontSize: 9, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase",
+            letterSpacing: "0.07em", paddingTop: 3, flexShrink: 0,
           }}>Outcomes</span>
           <OutcomeTags outcomes={story.outcomes || []} />
         </div>
