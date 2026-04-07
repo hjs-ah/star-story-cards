@@ -18,42 +18,36 @@ CA²R stands for: Context → Approach¹ → Approach² → Result
    - Position yourself AT CENTER — everything happens "around you"
    - Explain WHY you were selected and how you were involved
    - Give the interviewer HEFT, importance, gravitas — elevate your position
-   - Moves their emotional state to where YOU want it
 
 2. APPROACH¹ (System/Framework — race through it):
    - Explain your framework, playbook, or methodology
-   - Reverse engineer previous projects to create a formula/steps
    - Layout ALL the steps together — provide a "MAP" for your answer
-   - Confirm "big picture" understanding
    - Shows you have a METHODOLOGY — gets you paid more
-   - Gives a senior-level outlook, organized, more complete
+   - Senior-level outlook, organized, more complete
 
 3. APPROACH² (Step-by-step details — walk through it):
-   - Explain, for illustrative purposes, the actions you took for each step
+   - Explain the actions you took for each step
    - Cover highlights — gives speed
    - Focus on YOU within the big picture
-   - Guide the interviewer (listener) by showing where you are in the story
    - Shows DEPTH and organization, subject matter expertise
 
 4. RESULT (What happened — Great-8):
    - Share result in context of what you initially foreshadowed (repeat it)
    - Add EXTRA benefits (the extensions — surprise them)
-   - Cite results in relation to GREAT-8 accomplishments:
-     Revenue Generation, Market Awareness, Customer Attraction, Customer Happiness,
-     Company Growth, Employee Happiness, Cost Reduction, Process Efficiency
-   - Shows IMPACT, illustrates subject matter expertise
+   - Cite results in relation to GREAT-8: Revenue Generation, Market Awareness,
+     Customer Attraction, Customer Happiness, Company Growth, Employee Happiness,
+     Cost Reduction, Process Efficiency
    - End on a high note with SURPRISE extensions
 
 COACHING PHILOSOPHY:
-You are not just reformatting — you are a strategic thinking partner. Flag gaps, missed opportunities, and ways to strengthen delivery. The goal is to control the interviewer's emotional and cognitive state throughout the story.
+You are a strategic thinking partner. Flag gaps, missed opportunities, and ways to strengthen delivery.
 
 CRITICAL OUTPUT RULES:
 - Return ONLY a valid JSON object — no markdown, no backticks, no preamble, no explanation
 - Keep each field concise but complete — aim for 2-4 sentences per section
-- If the story content is sparse, work with what you have and flag gaps in coachNotes
 - The JSON must be complete and properly closed
 
-OUTPUT FORMAT:
+OUTPUT FORMAT (return exactly this structure):
 {"context":"...","approach1":"...","approach2":"...","result":"...","coachNotes":"..."}`;
 
 export default async function handler(req) {
@@ -71,12 +65,12 @@ export default async function handler(req) {
   }
 
   // Truncate very long fields to prevent token overflow
-  function trunc(s, max = 600) {
+  function trunc(s, max) {
     if (!s) return "";
     return s.length > max ? s.slice(0, max) + "..." : s;
   }
 
-  const userPrompt = `Restructure and coach this STAR story into CA²R format. Return ONLY valid JSON.
+  const userPrompt = `Restructure and coach this STAR story into CA²R format. Return ONLY valid JSON, nothing else.
 
 STORY TITLE: ${story.title || "Untitled"}
 ROLE/CONTEXT: ${trunc(story.context, 200)}
@@ -89,7 +83,7 @@ TASK: ${trunc(story.task, 400)}
 ACTION: ${trunc(story.action, 800)}
 RESULT: ${trunc(story.result, 400)}
 
-Return this exact JSON structure with no other text:
+Return this exact JSON with no other text before or after:
 {"context":"...","approach1":"...","approach2":"...","result":"...","coachNotes":"..."}`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -112,30 +106,19 @@ Return this exact JSON structure with no other text:
 
   const raw = data.content?.[0]?.text || "";
 
-  // Robust JSON extraction — handle markdown fences or extra text
-  let parsed;
   try {
-    // Try direct parse first
+    // Strip markdown fences if present, then find the JSON object boundaries
     const clean = raw.replace(/```json|```/g, "").trim();
-    // Find the first { and last } to extract JSON even with surrounding text
     const start = clean.indexOf("{");
     const end = clean.lastIndexOf("}");
-    if (start === -1 || end === -1) throw new Error("No JSON object found");
-    parsed = JSON.parse(clean.slice(start, end + 1));
-  } catch (e) {
-    // Return a structured error with the raw output for debugging
-    return new Response(
-      JSON.stringify({
-        error: "Could not parse CA²R output",
-        raw: raw.slice(0, 500),
-      }),
-      { status: 500, headers: { "Content-Type": "application/json", ...CORS } }
-    );
+    if (start === -1 || end === -1) throw new Error("No JSON found");
+    const parsed = JSON.parse(clean.slice(start, end + 1));
+    return new Response(JSON.stringify(parsed), {
+      headers: { "Content-Type": "application/json", ...CORS },
+    });
+  } catch {
+    return errResp("Could not parse CA²R output", 500);
   }
-
-  return new Response(JSON.stringify(parsed), {
-    headers: { "Content-Type": "application/json", ...CORS },
-  });
 }
 
 function errResp(msg, status) {
