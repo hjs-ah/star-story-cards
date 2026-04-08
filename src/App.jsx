@@ -11,12 +11,12 @@ const STATUS_FILTERS = ["Active", "Draft", "Archived", "All"];
 const COLS = [1, 2, 3];
 
 const SORT_OPTIONS = [
-  { value: "edited",     label: "Last edited"  },
-  { value: "rating_desc",label: "Rating ↓"     },
-  { value: "rating_asc", label: "Rating ↑"     },
-  { value: "year_desc",  label: "Year ↓"       },
-  { value: "year_asc",   label: "Year ↑"       },
-  { value: "title_asc",  label: "Title A–Z"    },
+  { value: "edited",      label: "Last edited" },
+  { value: "rating_desc", label: "Rating ↓"    },
+  { value: "rating_asc",  label: "Rating ↑"    },
+  { value: "year_desc",   label: "Year ↓"      },
+  { value: "year_asc",    label: "Year ↑"      },
+  { value: "title_asc",   label: "Title A–Z"   },
 ];
 
 function sortStories(stories, sort) {
@@ -27,7 +27,7 @@ function sortStories(stories, sort) {
     case "year_desc":   return s.sort((a, b) => (b.year || 0) - (a.year || 0));
     case "year_asc":    return s.sort((a, b) => (a.year || 0) - (b.year || 0));
     case "title_asc":   return s.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-    default:            return s; // "edited" — keep Notion order
+    default:            return s;
   }
 }
 
@@ -43,7 +43,6 @@ function Toast({ msg, onDone }) {
   );
 }
 
-// Filter row label — bold
 function FilterLabel({ children }) {
   return (
     <span style={{
@@ -52,6 +51,9 @@ function FilterLabel({ children }) {
     }}>{children}</span>
   );
 }
+
+// Detect mobile once at render time
+const isMobile = () => window.innerWidth < 640;
 
 export default function App() {
   const [stories,       setStories]       = useState([]);
@@ -62,9 +64,11 @@ export default function App() {
   const [yearFilter,    setYearFilter]    = useState(null);
   const [filterOutcome, setFilterOutcome] = useState(null);
   const [filterMM,      setFilterMM]      = useState(null);
-  const [filterRating,  setFilterRating]  = useState(null); // null | 1..5
+  const [filterRating,  setFilterRating]  = useState(null);
   const [sortBy,        setSortBy]        = useState("edited");
-  const [cols,          setCols]          = useState(2);
+  // Mobile always 1 col; desktop default 2
+  const [cols,          setCols]          = useState(() => isMobile() ? 1 : 2);
+  const [mobile,        setMobile]        = useState(() => isMobile());
   const [condensed,     setCondensed]     = useState(false);
   const [darkMode,      setDarkMode]      = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [editStory,     setEditStory]     = useState(null);
@@ -78,6 +82,17 @@ export default function App() {
   const [storyMode,     setStoryMode]     = useState("STAR");
   const [siteConfig,    setSiteConfig]    = useState({});
   const [showChangelog, setShowChangelog] = useState(false);
+
+  // Responsive: update mobile flag + lock cols on resize
+  useEffect(() => {
+    function onResize() {
+      const m = isMobile();
+      setMobile(m);
+      if (m) setCols(1);
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => { document.body.classList.toggle("dark", darkMode); }, [darkMode]);
 
@@ -155,7 +170,6 @@ export default function App() {
     setStories(prev => prev.map(s => s.id === id ? { ...s, rating } : s));
   }
 
-  // Filter pill
   const pill = (label, active, onClick, count) => (
     <button key={label} onClick={onClick} style={{
       fontSize: 12, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
@@ -184,111 +198,138 @@ export default function App() {
     setFilterOutcome(null); setFilterMM(null); setFilterRating(null);
   }
 
+  // Effective column count — always 1 on mobile
+  const effectiveCols = mobile ? 1 : cols;
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", transition: "background 0.2s" }}>
+      <style>{`
+        @media (max-width: 639px) {
+          .ah-header-right { flex-wrap: wrap !important; }
+        }
+      `}</style>
+
       <SiteHeader cfg={siteConfig} />
 
-      {/* App header */}
+      {/* App header — 2 rows: title row + controls row */}
       <header style={{
         background: "var(--header-bg)", borderBottom: "0.5px solid var(--border)",
-        padding: "0 1.5rem", height: 56,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 1rem",
+        display: "flex", flexDirection: "column",
         position: "sticky", top: 0, zIndex: 100,
       }}>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 17, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>
-              Impact Narratives
-            </span>
-            <span style={{ fontSize: 10, color: "var(--text3)", background: "var(--surface2)", padding: "2px 7px", borderRadius: 5, fontFamily: "var(--font-mono)" }}>
-              STAR
-            </span>
+        {/* Row 1: title + first group of controls */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          height: 48, gap: 8,
+        }}>
+          {/* Title */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>
+                Impact Narratives
+              </span>
+              <span style={{
+                fontSize: 10, color: "var(--text3)", background: "var(--surface2)",
+                padding: "2px 7px", borderRadius: 5, fontFamily: "var(--font-mono)",
+              }}>STAR</span>
+            </div>
+            <span style={{ fontSize: 10, color: "var(--text3)" }}>For use by owner</span>
           </div>
-          <span style={{ fontSize: 10, color: "var(--text3)", letterSpacing: "0.01em" }}>For use by owner</span>
+
+          {/* Right side row 1: col switcher, What's New, STAR/CA²R, dark mode, + New */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            {/* Column switcher — hidden on mobile */}
+            {!mobile && (
+              <div style={{ display: "flex", gap: 3, background: "var(--surface2)", borderRadius: 8, padding: 3 }}>
+                {COLS.map(n => (
+                  <button key={n} onClick={() => setCols(n)} style={{
+                    width: 26, height: 24, borderRadius: 6, border: "none", cursor: "pointer",
+                    background: cols === n ? "var(--surface)" : "transparent",
+                    color: cols === n ? "var(--text)" : "var(--text3)",
+                    fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
+                    boxShadow: cols === n ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+                  }}>{n}</button>
+                ))}
+              </div>
+            )}
+
+            {/* What's New */}
+            <button onClick={() => setShowChangelog(true)} style={{
+              fontSize: 11, padding: "0 10px", height: 30, borderRadius: 8,
+              border: "0.5px solid var(--border2)", background: "transparent",
+              color: "var(--text3)", cursor: "pointer", fontFamily: "var(--font)",
+              whiteSpace: "nowrap",
+            }}>What's New</button>
+
+            {/* STAR / CA²R */}
+            <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 3 }}>
+              {[["STAR","STAR"],["CA²R","CA2R"]].map(([label, val]) => (
+                <button key={val} onClick={() => setStoryMode(val)} style={{
+                  padding: "0 9px", height: 24, borderRadius: 6, border: "none", cursor: "pointer",
+                  background: storyMode === val ? "var(--surface)" : "transparent",
+                  color: storyMode === val ? "var(--text)" : "var(--text3)",
+                  fontFamily: "var(--font)", fontSize: 11, fontWeight: storyMode === val ? 500 : 400,
+                  boxShadow: storyMode === val ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+                  transition: "all 0.12s",
+                }}>{label}</button>
+              ))}
+            </div>
+
+            {/* Dark mode */}
+            <button onClick={() => setDarkMode(v => !v)} style={{
+              width: 30, height: 30, borderRadius: 8, border: "0.5px solid var(--border)",
+              background: "transparent", cursor: "pointer", fontSize: 14, color: "var(--text2)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>{darkMode ? "☀" : "☾"}</button>
+
+            {/* + New story */}
+            <button onClick={openNew} style={{
+              fontSize: 12, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
+              background: "var(--text)", color: "var(--bg)", border: "none",
+              fontFamily: "var(--font)", fontWeight: 500, whiteSpace: "nowrap",
+            }}>+ New</button>
+          </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Column switcher */}
-          <div style={{ display: "flex", gap: 3, background: "var(--surface2)", borderRadius: 8, padding: 3 }}>
-            {COLS.map(n => (
-              <button key={n} onClick={() => setCols(n)} title={`${n} col${n > 1 ? "s" : ""}`} style={{
-                width: 28, height: 26, borderRadius: 6, border: "none", cursor: "pointer",
-                background: cols === n ? "var(--surface)" : "transparent",
-                color: cols === n ? "var(--text)" : "var(--text3)",
-                fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
-                boxShadow: cols === n ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
-                transition: "all 0.12s",
-              }}>{n}</button>
-            ))}
-          </div>
-
-          {/* What's New */}
-          <button onClick={() => setShowChangelog(true)} style={{
-            fontSize: 11, padding: "0 10px", height: 32, borderRadius: 8,
-            border: "0.5px solid var(--border2)", background: "transparent",
-            color: "var(--text3)", cursor: "pointer", fontFamily: "var(--font)",
-            flexShrink: 0, whiteSpace: "nowrap",
-          }}>What's New</button>
-
-          {/* STAR / CA²R toggle */}
-          <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 3, flexShrink: 0 }}>
-            {[["STAR","STAR"],["CA²R","CA2R"]].map(([label, val]) => (
-              <button key={val} onClick={() => setStoryMode(val)} style={{
-                padding: "0 10px", height: 26, borderRadius: 6, border: "none", cursor: "pointer",
-                background: storyMode === val ? "var(--surface)" : "transparent",
-                color: storyMode === val ? "var(--text)" : "var(--text3)",
-                fontFamily: "var(--font)", fontSize: 11, fontWeight: storyMode === val ? 500 : 400,
-                boxShadow: storyMode === val ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
-                transition: "all 0.12s", flexShrink: 0,
-              }}>{label}</button>
-            ))}
-          </div>
-
+        {/* Row 2: Condense + Refresh — overflow to second line */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          paddingBottom: 8, flexWrap: "wrap",
+        }}>
           {/* Condense */}
           <button onClick={() => setCondensed(v => !v)} style={{
-            width: 82, height: 32, borderRadius: 8,
+            height: 28, padding: "0 10px", borderRadius: 8,
             border: "0.5px solid var(--border)",
             background: condensed ? "var(--surface2)" : "transparent",
             color: condensed ? "var(--text)" : "var(--text3)",
-            cursor: "pointer", fontSize: 11, fontFamily: "var(--font)", fontWeight: condensed ? 500 : 400,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "background 0.12s, color 0.12s", flexShrink: 0,
+            cursor: "pointer", fontSize: 11, fontFamily: "var(--font)",
+            fontWeight: condensed ? 500 : 400,
           }}>{condensed ? "Full view" : "Condense"}</button>
 
-          {/* Dark mode */}
-          <button onClick={() => setDarkMode(v => !v)} style={{
-            width: 34, height: 34, borderRadius: 8, border: "0.5px solid var(--border)",
-            background: "transparent", cursor: "pointer", fontSize: 16, color: "var(--text2)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>{darkMode ? "☀" : "☾"}</button>
-
-          <button onClick={openNew} style={{
-            fontSize: 12, padding: "6px 16px", borderRadius: 8, cursor: "pointer",
-            background: "var(--text)", color: "var(--bg)", border: "none",
-            fontFamily: "var(--font)", fontWeight: 500,
-          }}>+ New story</button>
+          {/* Refresh */}
+          {!loading && (
+            <button onClick={loadStories} title="Refresh" style={{
+              height: 28, padding: "0 10px", borderRadius: 8, cursor: "pointer",
+              border: "0.5px solid var(--border)", background: "transparent",
+              color: "var(--text3)", fontFamily: "var(--font)", fontSize: 12,
+            }}>↻ Refresh</button>
+          )}
         </div>
       </header>
 
-      <main style={{ maxWidth: cols === 3 ? 1200 : 960, margin: "0 auto", padding: "1.25rem 1.5rem 3rem" }}>
+      <main style={{ maxWidth: effectiveCols === 3 ? 1200 : 960, margin: "0 auto", padding: "1.25rem 1rem 3rem" }}>
 
-        {/* Status filter row */}
+        {/* Status filter */}
         <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
           <FilterLabel>Status</FilterLabel>
           {STATUS_FILTERS.map(s => pill(
             s, statusFilter === s, () => setStatusFilter(s),
             s === "All" ? undefined : stories.filter(st => (st.status || "Active") === s).length
           ))}
-          {!loading && (
-            <button onClick={loadStories} title="Refresh" style={{
-              marginLeft: "auto", fontSize: 12, padding: "5px 10px", borderRadius: 20, cursor: "pointer",
-              border: "0.5px solid var(--border)", background: "transparent",
-              color: "var(--text3)", fontFamily: "var(--font)",
-            }}>↻</button>
-          )}
         </div>
 
-        {/* Impact (tags) filter row */}
+        {/* Impact (tags) filter */}
         {allTags.length > 0 && (
           <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
             <FilterLabel>Impact</FilterLabel>
@@ -296,7 +337,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Outcomes filter row */}
+        {/* Outcomes filter */}
         {allOutcomes.length > 0 && (
           <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
             <FilterLabel>Outcomes</FilterLabel>
@@ -304,7 +345,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Mental Model filter row */}
+        {/* Model filter */}
         {allMentalModels.length > 0 && (
           <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
             <FilterLabel>Model</FilterLabel>
@@ -312,7 +353,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Year filter row */}
+        {/* Year filter */}
         {availableYears.length > 0 && (
           <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
             <FilterLabel>Year</FilterLabel>
@@ -320,28 +361,21 @@ export default function App() {
           </div>
         )}
 
-        {/* Rating filter + Sort row */}
+        {/* Rating filter + Sort */}
         <div style={{ display: "flex", gap: 4, marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
           <FilterLabel>Rating</FilterLabel>
-          {[5, 4, 3, 2, 1].map(n => pill(
+          {[5,4,3,2,1].map(n => pill(
             "★".repeat(n), filterRating === n,
             () => setFilterRating(filterRating === n ? null : n)
           ))}
-          {/* Sort selector — pushed to right */}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", whiteSpace: "nowrap" }}>Sort</span>
-            <select
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value)}
-              style={{
-                fontSize: 11, padding: "5px 8px", borderRadius: 8, cursor: "pointer",
-                border: "0.5px solid var(--border)", background: "var(--surface2)",
-                color: "var(--text2)", fontFamily: "var(--font)", outline: "none",
-              }}
-            >
-              {SORT_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{
+              fontSize: 11, padding: "5px 8px", borderRadius: 8, cursor: "pointer",
+              border: "0.5px solid var(--border)", background: "var(--surface2)",
+              color: "var(--text2)", fontFamily: "var(--font)", outline: "none",
+            }}>
+              {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
         </div>
@@ -353,20 +387,19 @@ export default function App() {
           onYearSelect={y => setYearFilter(yearFilter === y ? null : y)}
         />
 
-        {/* Filter status bar */}
+        {/* Filter summary */}
         {!loading && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", minHeight: 22 }}>
             <span style={{ fontSize: 11, color: "var(--text2)" }}>
               {!hasFilters
                 ? <span style={{ color: "var(--text3)" }}>No filters selected</span>
-                : <>
-                    Showing <strong style={{ fontWeight: 500, color: "var(--text)" }}>{filteredSorted.length}</strong>
-                    {" "}stor{filteredSorted.length === 1 ? "y" : "ies"}
+                : <>Showing <strong style={{ fontWeight: 500, color: "var(--text)" }}>{filteredSorted.length}</strong>{" "}
+                    stor{filteredSorted.length === 1 ? "y" : "ies"}
                     {filterParts.length ? ` — ${filterParts.join(", ")}` : ""}
                   </>
               }
             </span>
-            {hasFilters && statusFilter === "Active" && (
+            {hasFilters && (
               <button onClick={clearFilters} style={{
                 fontSize: 11, background: "none", border: "none", color: "var(--tan-title)",
                 cursor: "pointer", textDecoration: "underline", fontFamily: "var(--font)", padding: 0,
@@ -375,7 +408,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Loading / Error / Empty */}
         {loading && <div style={{ textAlign: "center", padding: "4rem 0", color: "var(--text3)", fontSize: 13 }}>Loading stories from Notion...</div>}
         {!loading && error && (
           <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#B84A2E", background: "#FFF0EC", borderRadius: 12, fontSize: 13 }}>
@@ -394,9 +426,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Story grid */}
         {!loading && !error && filteredSorted.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))`, gap: 16 }}>
             {filteredSorted.map(story => (
               <StoryCard
                 key={story.id}
