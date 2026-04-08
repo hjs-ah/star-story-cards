@@ -9,18 +9,19 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-// Static fallback — used when Notion integration doesn't have access yet
-// Edit these values here until you connect the "Story Cards" integration
-// to the Site Config database in Notion (open the DB → ... → Connections → Story Cards)
+// Static fallback — matches the rows now in the Notion Site Config database.
+// These are used when the Notion integration hasn't been connected yet.
+// To update values without touching code: edit them in Notion (Site Config DB).
+// To update the fallback too: edit the values below.
 const STATIC_FALLBACK = {
-  full_name:        "Antone Holmes, MA",
-  title:            "Practitioner of Strategy in Philanthropy, Theology, & Revenue Enablement",
-  location:         "United States",
-  photo_url:        "https://hjs-ah.github.io/AH-FE-2.0/assets/DrH_MultiM.png",
-  social_linkedin:  "https://linkedin.com/in/antoneholmes",
-  social_medium:    "https://medium.com/@antoneh",
-  social_behance:   "https://behance.net/antoneholmes",
-  social_figma:     "https://figma.com/@antoneholmes",
+  full_name:       "Antone Holmes, MA",
+  title:           "Practitioner of Strategy in Philanthropy, Theology, & Revenue Enablement",
+  location:        "United States",
+  photo_url:       "https://hjs-ah.github.io/AH-FE-2.0/assets/DrH_MultiM.png",
+  social_linkedin: "https://linkedin.com/in/antoneholmes",
+  social_medium:   "https://medium.com/@antoneh",
+  social_behance:  "https://behance.net/antoneholmes",
+  social_figma:    "https://figma.com/@antoneholmes",
 };
 
 export default async function handler(req) {
@@ -45,15 +46,14 @@ export default async function handler(req) {
 
     const data = await res.json();
 
-    // If Notion returns an error (e.g. no access), silently use fallback
     if (!res.ok || data.object === "error") {
       return ok(STATIC_FALLBACK);
     }
 
-    // Parse key→value rows into a flat config object
+    // Merge Notion rows over the fallback so missing keys stay populated
     const cfg = { ...STATIC_FALLBACK };
     for (const page of data.results || []) {
-      const p = page.properties;
+      const p   = page.properties;
       const key = p["Setting"]?.title?.map(t => t.plain_text).join("").trim();
       const val = p["Value"]?.rich_text?.map(t => t.plain_text).join("").trim();
       if (key && val) cfg[key] = val;
