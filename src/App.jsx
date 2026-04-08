@@ -10,11 +10,29 @@ import { listStories, getSchema, createStory, updateStory, patchStory, fetchConf
 const STATUS_FILTERS = ["Active", "Draft", "Archived", "All"];
 const COLS = [1, 2, 3];
 
+const SORT_OPTIONS = [
+  { value: "edited",     label: "Last edited"  },
+  { value: "rating_desc",label: "Rating ↓"     },
+  { value: "rating_asc", label: "Rating ↑"     },
+  { value: "year_desc",  label: "Year ↓"       },
+  { value: "year_asc",   label: "Year ↑"       },
+  { value: "title_asc",  label: "Title A–Z"    },
+];
+
+function sortStories(stories, sort) {
+  const s = [...stories];
+  switch (sort) {
+    case "rating_desc": return s.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    case "rating_asc":  return s.sort((a, b) => (a.rating || 0) - (b.rating || 0));
+    case "year_desc":   return s.sort((a, b) => (b.year || 0) - (a.year || 0));
+    case "year_asc":    return s.sort((a, b) => (a.year || 0) - (b.year || 0));
+    case "title_asc":   return s.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    default:            return s; // "edited" — keep Notion order
+  }
+}
+
 function Toast({ msg, onDone }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 2600);
-    return () => clearTimeout(t);
-  }, [msg]);
+  useEffect(() => { const t = setTimeout(onDone, 2600); return () => clearTimeout(t); }, [msg]);
   return (
     <div style={{
       position: "fixed", bottom: 20, right: 20, zIndex: 400,
@@ -25,42 +43,49 @@ function Toast({ msg, onDone }) {
   );
 }
 
+// Filter row label — bold
+function FilterLabel({ children }) {
+  return (
+    <span style={{
+      fontSize: 11, color: "var(--text2)", marginRight: 4,
+      fontWeight: 700, flexShrink: 0, whiteSpace: "nowrap",
+    }}>{children}</span>
+  );
+}
+
 export default function App() {
-  const [stories,     setStories]     = useState([]);
+  const [stories,       setStories]       = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [statusFilter, setStatusFilter] = useState("Active");
-  const [tagFilter,   setTagFilter]   = useState(null);
-  const [yearFilter,  setYearFilter]  = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [statusFilter,  setStatusFilter]  = useState("Active");
+  const [tagFilter,     setTagFilter]     = useState(null);
+  const [yearFilter,    setYearFilter]    = useState(null);
   const [filterOutcome, setFilterOutcome] = useState(null);
-  const [filterMM,    setFilterMM]    = useState(null);
-  const [cols,        setCols]        = useState(2);
-  const [condensed,   setCondensed]   = useState(false);
-  const [darkMode,    setDarkMode]    = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
-  const [editStory,   setEditStory]   = useState(null);
-  const [showModal,   setShowModal]   = useState(false);
-  const [focusStory,  setFocusStory]  = useState(null);
-  const [saving,      setSaving]      = useState(false);
-  const [toast,       setToast]       = useState("");
-  const [error,       setError]       = useState("");
-  const [kwCache,     setKwCache]     = useState({});
-  const [carCache,    setCarCache]    = useState({});
-  const [storyMode,   setStoryMode]   = useState("STAR");
-  const [siteConfig,  setSiteConfig]  = useState({});
+  const [filterMM,      setFilterMM]      = useState(null);
+  const [filterRating,  setFilterRating]  = useState(null); // null | 1..5
+  const [sortBy,        setSortBy]        = useState("edited");
+  const [cols,          setCols]          = useState(2);
+  const [condensed,     setCondensed]     = useState(false);
+  const [darkMode,      setDarkMode]      = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [editStory,     setEditStory]     = useState(null);
+  const [showModal,     setShowModal]     = useState(false);
+  const [focusStory,    setFocusStory]    = useState(null);
+  const [saving,        setSaving]        = useState(false);
+  const [toast,         setToast]         = useState("");
+  const [error,         setError]         = useState("");
+  const [kwCache,       setKwCache]       = useState({});
+  const [carCache,      setCarCache]      = useState({});
+  const [storyMode,     setStoryMode]     = useState("STAR");
+  const [siteConfig,    setSiteConfig]    = useState({});
   const [showChangelog, setShowChangelog] = useState(false);
 
-  useEffect(() => {
-    document.body.classList.toggle("dark", darkMode);
-  }, [darkMode]);
+  useEffect(() => { document.body.classList.toggle("dark", darkMode); }, [darkMode]);
 
   const loadStories = useCallback(async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const [storiesData, schemaData, cfg] = await Promise.all([
-        listStories(),
-        getSchema(),
-        fetchConfig().catch(() => ({})),
+        listStories(), getSchema(), fetchConfig().catch(() => ({})),
       ]);
       setStories(storiesData);
       setAvailableTags(schemaData.tags || []);
@@ -74,25 +99,27 @@ export default function App() {
 
   useEffect(() => { loadStories(); }, [loadStories]);
 
-  // Derived filter options
-  const availableYears   = [...new Set(stories.map(s => s.year).filter(Boolean))].sort((a, b) => b - a);
-  const allTags          = [...new Set([...availableTags, ...stories.flatMap(s => s.tags || [])])];
-  const allOutcomes      = [...new Set(stories.flatMap(s => s.outcomes || []))];
-  const allMentalModels  = [...new Set(stories.flatMap(s => s.mental_model || []))];
+  const availableYears  = [...new Set(stories.map(s => s.year).filter(Boolean))].sort((a, b) => b - a);
+  const allTags         = [...new Set([...availableTags, ...stories.flatMap(s => s.tags || [])])];
+  const allOutcomes     = [...new Set(stories.flatMap(s => s.outcomes || []))];
+  const allMentalModels = [...new Set(stories.flatMap(s => s.mental_model || []))];
 
-  // Filtered stories
-  const filteredStories = stories.filter(story => {
-    const matchStatus  = statusFilter === "All" ? true : (story.status || "Active") === statusFilter;
-    const matchTag     = tagFilter    ? (story.tags || []).includes(tagFilter) : true;
-    const matchYear    = yearFilter   ? story.year === yearFilter : true;
-    const matchOutcome = filterOutcome ? (story.outcomes || []).includes(filterOutcome) : true;
-    const matchMM      = filterMM     ? (story.mental_model || []).includes(filterMM) : true;
-    return matchStatus && matchTag && matchYear && matchOutcome && matchMM;
-  });
+  const filteredSorted = sortStories(
+    stories.filter(story => {
+      const matchStatus  = statusFilter === "All" ? true : (story.status || "Active") === statusFilter;
+      const matchTag     = tagFilter     ? (story.tags || []).includes(tagFilter) : true;
+      const matchYear    = yearFilter    ? story.year === yearFilter : true;
+      const matchOutcome = filterOutcome ? (story.outcomes || []).includes(filterOutcome) : true;
+      const matchMM      = filterMM      ? (story.mental_model || []).includes(filterMM) : true;
+      const matchRating  = filterRating  ? (story.rating || 0) >= filterRating : true;
+      return matchStatus && matchTag && matchYear && matchOutcome && matchMM && matchRating;
+    }),
+    sortBy
+  );
 
-  function openNew() { setEditStory(null); setShowModal(true); }
-  function openEdit(story) { setEditStory(story); setShowModal(true); }
-  function closeModal() { setShowModal(false); setEditStory(null); }
+  function openNew()   { setEditStory(null); setShowModal(true); }
+  function openEdit(s) { setEditStory(s);    setShowModal(true); }
+  function closeModal(){ setShowModal(false); setEditStory(null); }
 
   async function handleSave(formData) {
     setSaving(true);
@@ -104,17 +131,14 @@ export default function App() {
         setToast("Story updated in Notion.");
       } else {
         const res = await createStory(formData);
-        const newStory = res?.id ? { ...formData, id: res.id } : { id: "local-" + Date.now(), ...formData };
-        setStories(prev => [newStory, ...prev]);
+        const ns  = res?.id ? { ...formData, id: res.id } : { id: "local-" + Date.now(), ...formData };
+        setStories(prev => [ns, ...prev]);
         getSchema().then(d => setAvailableTags(d.tags || [])).catch(() => {});
         setToast("Story saved to Notion.");
       }
       closeModal();
-    } catch {
-      setToast("Error saving. Please try again.");
-    } finally {
-      setSaving(false);
-    }
+    } catch { setToast("Error saving. Please try again."); }
+    finally  { setSaving(false); }
   }
 
   async function handleArchive(id) {
@@ -122,19 +146,17 @@ export default function App() {
     setToast("Story archived.");
     await patchStory(id, { status: "Archived" }).catch(console.error);
   }
-
   async function handleRestore(id) {
     setStories(prev => prev.map(s => s.id === id ? { ...s, status: "Active" } : s));
     setToast("Story restored to Active.");
     await patchStory(id, { status: "Active" }).catch(console.error);
   }
-
   function handleRatingChange(id, rating) {
     setStories(prev => prev.map(s => s.id === id ? { ...s, rating } : s));
   }
 
-  // Filter pill helper
-  const filterBtn = (label, active, onClick, count) => (
+  // Filter pill
+  const pill = (label, active, onClick, count) => (
     <button key={label} onClick={onClick} style={{
       fontSize: 12, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
       border: active ? "0.5px solid var(--accent)" : "0.5px solid var(--border)",
@@ -148,14 +170,19 @@ export default function App() {
     </button>
   );
 
-  const hasFilters = tagFilter || yearFilter || filterOutcome || filterMM || statusFilter !== "All";
+  const hasFilters = tagFilter || yearFilter || filterOutcome || filterMM || filterRating || statusFilter !== "All";
+  const filterParts = [];
+  if (statusFilter !== "All") filterParts.push(statusFilter.toLowerCase());
+  if (tagFilter)     filterParts.push(`"${tagFilter}"`);
+  if (yearFilter)    filterParts.push(`${yearFilter}`);
+  if (filterOutcome) filterParts.push(filterOutcome);
+  if (filterMM)      filterParts.push(filterMM);
+  if (filterRating)  filterParts.push(`${filterRating}★+`);
 
-  const filterSummaryParts = [];
-  if (statusFilter !== "All") filterSummaryParts.push(statusFilter.toLowerCase());
-  if (tagFilter)     filterSummaryParts.push(`tagged "${tagFilter}"`);
-  if (yearFilter)    filterSummaryParts.push(`from ${yearFilter}`);
-  if (filterOutcome) filterSummaryParts.push(`outcome: ${filterOutcome}`);
-  if (filterMM)      filterSummaryParts.push(`model: ${filterMM}`);
+  function clearFilters() {
+    setTagFilter(null); setYearFilter(null);
+    setFilterOutcome(null); setFilterMM(null); setFilterRating(null);
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", transition: "background 0.2s" }}>
@@ -196,7 +223,7 @@ export default function App() {
           </div>
 
           {/* What's New */}
-          <button onClick={() => setShowChangelog(true)} title="What's New" style={{
+          <button onClick={() => setShowChangelog(true)} style={{
             fontSize: 11, padding: "0 10px", height: 32, borderRadius: 8,
             border: "0.5px solid var(--border2)", background: "transparent",
             color: "var(--text3)", cursor: "pointer", fontFamily: "var(--font)",
@@ -205,7 +232,7 @@ export default function App() {
 
           {/* STAR / CA²R toggle */}
           <div style={{ display: "flex", gap: 2, background: "var(--surface2)", borderRadius: 8, padding: 3, flexShrink: 0 }}>
-            {[["STAR","STAR"],["CA²R","CA2R"]].map(([label,val]) => (
+            {[["STAR","STAR"],["CA²R","CA2R"]].map(([label, val]) => (
               <button key={val} onClick={() => setStoryMode(val)} style={{
                 padding: "0 10px", height: 26, borderRadius: 6, border: "none", cursor: "pointer",
                 background: storyMode === val ? "var(--surface)" : "transparent",
@@ -217,26 +244,24 @@ export default function App() {
             ))}
           </div>
 
-          {/* Condense toggle */}
-          <button onClick={() => setCondensed(v => !v)} title={condensed ? "Full view" : "Condensed view"} style={{
+          {/* Condense */}
+          <button onClick={() => setCondensed(v => !v)} style={{
             width: 82, height: 32, borderRadius: 8,
             border: "0.5px solid var(--border)",
             background: condensed ? "var(--surface2)" : "transparent",
             color: condensed ? "var(--text)" : "var(--text3)",
-            cursor: "pointer", fontSize: 11, fontFamily: "var(--font)",
-            fontWeight: condensed ? 500 : 400,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+            cursor: "pointer", fontSize: 11, fontFamily: "var(--font)", fontWeight: condensed ? 500 : 400,
+            display: "flex", alignItems: "center", justifyContent: "center",
             transition: "background 0.12s, color 0.12s", flexShrink: 0,
           }}>{condensed ? "Full view" : "Condense"}</button>
 
           {/* Dark mode */}
-          <button onClick={() => setDarkMode(v => !v)} title={darkMode ? "Light mode" : "Dark mode"} style={{
+          <button onClick={() => setDarkMode(v => !v)} style={{
             width: 34, height: 34, borderRadius: 8, border: "0.5px solid var(--border)",
             background: "transparent", cursor: "pointer", fontSize: 16, color: "var(--text2)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>{darkMode ? "☀" : "☾"}</button>
 
-          {/* New story */}
           <button onClick={openNew} style={{
             fontSize: 12, padding: "6px 16px", borderRadius: 8, cursor: "pointer",
             background: "var(--text)", color: "var(--bg)", border: "none",
@@ -249,9 +274,10 @@ export default function App() {
 
         {/* Status filter row */}
         <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-          {STATUS_FILTERS.map(s => filterBtn(
+          <FilterLabel>Status</FilterLabel>
+          {STATUS_FILTERS.map(s => pill(
             s, statusFilter === s, () => setStatusFilter(s),
-            s === "All" ? undefined : stories.filter(story => (story.status || "Active") === s).length
+            s === "All" ? undefined : stories.filter(st => (st.status || "Active") === s).length
           ))}
           {!loading && (
             <button onClick={loadStories} title="Refresh" style={{
@@ -262,40 +288,70 @@ export default function App() {
           )}
         </div>
 
-        {/* Tags filter row */}
+        {/* Impact (tags) filter row */}
         {allTags.length > 0 && (
           <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--text3)", marginRight: 2, fontWeight: 500 }}>Tags</span>
-            {allTags.map(tag => filterBtn(tag, tagFilter === tag, () => setTagFilter(tagFilter === tag ? null : tag)))}
+            <FilterLabel>Impact</FilterLabel>
+            {allTags.map(tag => pill(tag, tagFilter === tag, () => setTagFilter(tagFilter === tag ? null : tag)))}
           </div>
         )}
 
         {/* Outcomes filter row */}
         {allOutcomes.length > 0 && (
           <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--text3)", marginRight: 2, fontWeight: 500 }}>Outcomes</span>
-            {allOutcomes.map(o => filterBtn(o, filterOutcome === o, () => setFilterOutcome(filterOutcome === o ? null : o)))}
+            <FilterLabel>Outcomes</FilterLabel>
+            {allOutcomes.map(o => pill(o, filterOutcome === o, () => setFilterOutcome(filterOutcome === o ? null : o)))}
           </div>
         )}
 
         {/* Mental Model filter row */}
         {allMentalModels.length > 0 && (
           <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--text3)", marginRight: 2, fontWeight: 500 }}>Model</span>
-            {allMentalModels.map(m => filterBtn(m, filterMM === m, () => setFilterMM(filterMM === m ? null : m)))}
+            <FilterLabel>Model</FilterLabel>
+            {allMentalModels.map(m => pill(m, filterMM === m, () => setFilterMM(filterMM === m ? null : m)))}
           </div>
         )}
 
         {/* Year filter row */}
         {availableYears.length > 0 && (
-          <div style={{ display: "flex", gap: 4, marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--text3)", marginRight: 2, fontWeight: 500 }}>Year</span>
-            {availableYears.map(y => filterBtn(String(y), yearFilter === y, () => setYearFilter(yearFilter === y ? null : y)))}
+          <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+            <FilterLabel>Year</FilterLabel>
+            {availableYears.map(y => pill(String(y), yearFilter === y, () => setYearFilter(yearFilter === y ? null : y)))}
           </div>
         )}
 
+        {/* Rating filter + Sort row */}
+        <div style={{ display: "flex", gap: 4, marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
+          <FilterLabel>Rating</FilterLabel>
+          {[5, 4, 3, 2, 1].map(n => pill(
+            "★".repeat(n), filterRating === n,
+            () => setFilterRating(filterRating === n ? null : n)
+          ))}
+          {/* Sort selector — pushed to right */}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", whiteSpace: "nowrap" }}>Sort</span>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              style={{
+                fontSize: 11, padding: "5px 8px", borderRadius: 8, cursor: "pointer",
+                border: "0.5px solid var(--border)", background: "var(--surface2)",
+                color: "var(--text2)", fontFamily: "var(--font)", outline: "none",
+              }}
+            >
+              {SORT_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* Timeline */}
-        <CareerTimeline stories={stories} activeYear={yearFilter} onYearSelect={y => setYearFilter(yearFilter === y ? null : y)} />
+        <CareerTimeline
+          stories={stories}
+          activeYear={yearFilter}
+          onYearSelect={y => setYearFilter(yearFilter === y ? null : y)}
+        />
 
         {/* Filter status bar */}
         {!loading && (
@@ -304,14 +360,14 @@ export default function App() {
               {!hasFilters
                 ? <span style={{ color: "var(--text3)" }}>No filters selected</span>
                 : <>
-                    Showing <strong style={{ fontWeight: 500, color: "var(--text)" }}>{filteredStories.length}</strong>
-                    {" "}stor{filteredStories.length === 1 ? "y" : "ies"}
-                    {filterSummaryParts.length ? ` — ${filterSummaryParts.join(", ")}` : ""}
+                    Showing <strong style={{ fontWeight: 500, color: "var(--text)" }}>{filteredSorted.length}</strong>
+                    {" "}stor{filteredSorted.length === 1 ? "y" : "ies"}
+                    {filterParts.length ? ` — ${filterParts.join(", ")}` : ""}
                   </>
               }
             </span>
-            {(tagFilter || yearFilter || filterOutcome || filterMM) && (
-              <button onClick={() => { setTagFilter(null); setYearFilter(null); setFilterOutcome(null); setFilterMM(null); }} style={{
+            {hasFilters && statusFilter === "Active" && (
+              <button onClick={clearFilters} style={{
                 fontSize: 11, background: "none", border: "none", color: "var(--tan-title)",
                 cursor: "pointer", textDecoration: "underline", fontFamily: "var(--font)", padding: 0,
               }}>clear filters</button>
@@ -319,23 +375,15 @@ export default function App() {
           </div>
         )}
 
-        {/* Loading */}
-        {loading && (
-          <div style={{ textAlign: "center", padding: "4rem 0", color: "var(--text3)", fontSize: 13 }}>
-            Loading stories from Notion...
-          </div>
-        )}
-
-        {/* Error */}
+        {/* Loading / Error / Empty */}
+        {loading && <div style={{ textAlign: "center", padding: "4rem 0", color: "var(--text3)", fontSize: 13 }}>Loading stories from Notion...</div>}
         {!loading && error && (
           <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#B84A2E", background: "#FFF0EC", borderRadius: 12, fontSize: 13 }}>
             {error}
             <button onClick={loadStories} style={{ display: "block", margin: "10px auto 0", fontSize: 12, cursor: "pointer", color: "#B84A2E", background: "none", border: "none", textDecoration: "underline" }}>Try again</button>
           </div>
         )}
-
-        {/* Empty state */}
-        {!loading && !error && filteredStories.length === 0 && (
+        {!loading && !error && filteredSorted.length === 0 && (
           <div style={{ textAlign: "center", padding: "4rem 1rem", color: "var(--text3)" }}>
             <p style={{ fontSize: 14, marginBottom: 8 }}>No stories match the current filters.</p>
             {statusFilter !== "Archived" && !tagFilter && !yearFilter && (
@@ -347,9 +395,9 @@ export default function App() {
         )}
 
         {/* Story grid */}
-        {!loading && !error && filteredStories.length > 0 && (
+        {!loading && !error && filteredSorted.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 16 }}>
-            {filteredStories.map(story => (
+            {filteredSorted.map(story => (
               <StoryCard
                 key={story.id}
                 story={story}
@@ -361,7 +409,7 @@ export default function App() {
                 condensed={condensed}
                 storyMode={storyMode}
                 kwData={kwCache[story.id] || null}
-                onKwSave={kw => setKwCache(prev => ({ ...prev, [story.id]: kw }))}
+                onKwSave={kw  => setKwCache(prev => ({ ...prev, [story.id]: kw }))}
                 onKwReset={id => setKwCache(prev => { const n = { ...prev }; delete n[id]; return n; })}
                 carData={carCache[story.id] || null}
                 onCarSave={car => setCarCache(prev => ({ ...prev, [story.id]: car }))}
@@ -372,17 +420,9 @@ export default function App() {
         )}
       </main>
 
-      {/* Modals */}
       {showModal && (
-        <StoryModal
-          story={editStory}
-          onSave={handleSave}
-          onClose={closeModal}
-          saving={saving}
-          availableTags={allTags}
-        />
+        <StoryModal story={editStory} onSave={handleSave} onClose={closeModal} saving={saving} availableTags={allTags} />
       )}
-
       {focusStory && (
         <FocusOverlay
           story={focusStory}
@@ -393,9 +433,7 @@ export default function App() {
           onCarSave={car => setCarCache(prev => ({ ...prev, [focusStory.id]: car }))}
         />
       )}
-
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
-
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
     </div>
   );
