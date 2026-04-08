@@ -19,6 +19,11 @@ const SORT_OPTIONS = [
   { value: "title_asc",   label: "Title A–Z"   },
 ];
 
+const EMPLOYER_YEARS = {
+  CB:  { from: 2017, to: 2021 },
+  AWS: { from: 2022, to: 2026 },
+};
+
 function sortStories(stories, sort) {
   const s = [...stories];
   switch (sort) {
@@ -64,7 +69,8 @@ export default function App() {
   const [yearFilter,    setYearFilter]    = useState(null);
   const [filterOutcome, setFilterOutcome] = useState(null);
   const [filterMM,      setFilterMM]      = useState(null);
-  const [filterRating,  setFilterRating]  = useState(null);
+  const [filterRating,   setFilterRating]  = useState(null);
+  const [filterEmployer, setFilterEmployer] = useState(null);
   const [sortBy,        setSortBy]        = useState("edited");
   // Mobile always 1 col; desktop default 2
   const [cols,          setCols]          = useState(() => isMobile() ? 1 : 2);
@@ -126,8 +132,12 @@ export default function App() {
       const matchYear    = yearFilter    ? story.year === yearFilter : true;
       const matchOutcome = filterOutcome ? (story.outcomes || []).includes(filterOutcome) : true;
       const matchMM      = filterMM      ? (story.mental_model || []).includes(filterMM) : true;
-      const matchRating  = filterRating  ? (story.rating || 0) >= filterRating : true;
-      return matchStatus && matchTag && matchYear && matchOutcome && matchMM && matchRating;
+      const matchRating    = filterRating    ? (story.rating || 0) >= filterRating : true;
+      const matchEmployer  = filterEmployer  ? (() => {
+        const band = EMPLOYER_YEARS[filterEmployer];
+        return band ? (story.year >= band.from && story.year <= band.to) : true;
+      })() : true;
+      return matchStatus && matchTag && matchYear && matchOutcome && matchMM && matchRating && matchEmployer;
     }),
     sortBy
   );
@@ -191,11 +201,12 @@ export default function App() {
   if (yearFilter)    filterParts.push(`${yearFilter}`);
   if (filterOutcome) filterParts.push(filterOutcome);
   if (filterMM)      filterParts.push(filterMM);
-  if (filterRating)  filterParts.push(`${filterRating}★+`);
+  if (filterRating)   filterParts.push(`${filterRating}★+`);
+  if (filterEmployer) filterParts.push(filterEmployer);
 
   function clearFilters() {
     setTagFilter(null); setYearFilter(null);
-    setFilterOutcome(null); setFilterMM(null); setFilterRating(null);
+    setFilterOutcome(null); setFilterMM(null); setFilterRating(null); setFilterEmployer(null);
   }
 
   // Effective column count — always 1 on mobile
@@ -385,6 +396,8 @@ export default function App() {
           stories={stories}
           activeYear={yearFilter}
           onYearSelect={y => setYearFilter(yearFilter === y ? null : y)}
+          activeEmployer={filterEmployer}
+          onEmployerSelect={setFilterEmployer}
         />
 
         {/* Filter summary */}
